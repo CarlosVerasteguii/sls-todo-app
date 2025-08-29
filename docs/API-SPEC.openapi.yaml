@@ -1,0 +1,520 @@
+openapi: 3.0.3
+info:
+  title: SLS To-Do — HTTP API
+  version: "1.0.0"
+  description: |
+    Stable contracts for the SLS To-Do server boundary. All mutations go through these APIs
+    (or equivalent Server Actions). No end-user auth in v1.0; data is partitioned by an
+    **Identifier** (normalized to `identifier_norm`) supplied per request.
+  contact:
+    name: SLS To-Do Team
+    url: https://example.com
+servers:
+  - url: https://{domain}
+    variables:
+      domain:
+        default: app.example.com
+        description: Vercel production domain
+tags:
+  - name: Todos
+    description: CRUD for To-Dos (partitioned by identifier)
+  - name: Chat
+    description: Minimal text commands mapped to CRUD
+  - name: Webhooks
+    description: Inbound integrations (n8n enrichment, WhatsApp stub)
+  - name: Health
+    description: Health & ops
+
+components:
+  parameters:
+    IdentifierQuery:
+      name: identifier
+      in: query
+      required: true
+      description: |
+        User-provided Identifier (email or name). Server derives `identifier_norm` by
+        lowercasing, trimming, and collapsing spaces.
+      schema:
+        type: string
+        minLength: 1
+    StatusQuery:
+      name: status
+      in: query
+      description: Filter list by completion state
+      schema:
+        type: string
+        enum: [all, active, completed]
+        default: active
+    LimitQuery:
+      name: limit
+      in: query
+      description: Page size (1–100)
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 50
+    CursorQuery:
+      name: cursor
+      in: query
+      description: Opaque cursor token for pagination
+      schema:
+        type: string
+  schemas:
+    Todo:
+      type: object
+      required:
+        - id
+        - identifier_norm
+        - identifier_raw
+        - title
+        - priority
+        - completed
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        identifier_norm:
+          type: string
+          description: Lowercased/trimmed partition key
+        identifier_raw:
+          type: string
+          description: Original user-entered Identifier (for display)
+        title:
+          type: string
+          maxLength: 200
+        description:
+          type: string
+          maxLength: 2000
+          nullable: true
+        priority:
+          type: string
+          enum: [P0, P1, P2, P3]
+          default: P2
+        project:
+          type: string
+          maxLength: 80
+          nullable: true
+        tags:
+          type: array
+          items:
+            type: string
+            maxLength: 24
+        completed:
+          type: boolean
+          default: false
+        enhanced_description:
+          type: string
+          nullable: true
+        steps:
+          type: array
+          items:
+            type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    TodoCreateRequest:
+      type: object
+      required: [identifier, title]
+      properties:
+        identifier:
+          type: string
+          description: Identifier (email or name) used to scope data
+        title:
+          type: string
+          maxLength: 200
+        description:
+          type: string
+          maxLength: 2000
+        priority:
+          type: string
+          enum: [P0, P1, P2, P3]
+          default: P2
+        project:
+          type: string
+          maxLength: 80
+        tags:
+          type: array
+          items:
+            type: string
+            maxLength: 24
+    TodoUpdateRequest:
+      type: object
+      description: Any subset of fields may be sent
+      properties:
+        title:
+          type: string
+          maxLength: 200
+        description:
+          type: string
+          maxLength: 2000
+          nullable: true
+        priority:
+          type: string
+          enum: [P0, P1, P2, P3]
+        project:
+          type: string
+          maxLength: 80
+          nullable: true
+        tags:
+          type: array
+          items:
+            type: string
+            maxLength: 24
+        completed:
+          type: boolean
+    TodoResponse:
+      type: object
+      required: [todo]
+      properties:
+        todo:
+          $ref: '#/components/schemas/Todo'
+        request_id:
+          type: string
+          format: uuid
+    TodoListResponse:
+      type: object
+      required: [items, count_active, count_completed]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Todo'
+        next_cursor:
+          type: string
+          nullable: true
+        count_active:
+          type: integer
+        count_completed:
+          type: integer
+        request_id:
+          type: string
+          format: uuid
+    ChatRequest:
+      type: object
+      required: [identifier, message]
+      properties:
+        identifier:
+          type: string
+        message:
+          type: string
+          description: |
+            Supported (case-insensitive):
+            - `list`
+            - `add <title> |priority=P0|P1|P2|P3 |project=<text> |tags=a,b`
+            - `done <taskId>`
+    ChatResponse:
+      type: object
+      required: [reply]
+      properties:
+        reply:
+          type: string
+        data:
+          type: object
+          additionalProperties: true
+          nullable: true
+        request_id:
+          type: string
+          format: uuid
+    EnrichmentRequest:
+      type: object
+      required: [todo_id, identifier, title]
+      properties:
+        todo_id:
+          type: string
+          format: uuid
+        identifier:
+          type: string
+        title:
+          type: string
+        enhanced_description:
+          type: string
+          nullable: true
+        steps:
+          type: array
+          items:
+            type: string
+          nullable: true
+    WhatsappWebhookStubRequest:
+      type: object
+      description: Provider-specific payload; shape varies (Evolution/Twilio/Official)
+      additionalProperties: true
+    ErrorEnvelope:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              enum: [BAD_REQUEST, UNAUTHORIZED, NOT_FOUND, CONFLICT, RATE_LIMITED, INTERNAL]
+            message:
+              type: string
+            request_id:
+              type: string
+              format: uuid
+
+paths:
+  /api/todos:
+    post:
+      tags: [Todos]
+      summary: Create a todo
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TodoCreateRequest'
+            examples:
+              minimal:
+                value:
+                  identifier: john@example.com
+                  title: Write PRD
+              full:
+                value:
+                  identifier: john@example.com
+                  title: Write PRD
+                  description: Draft sections 1.4.x
+                  priority: P1
+                  project: SLS To-Do
+                  tags: [docs, prd]
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TodoResponse'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+    get:
+      tags: [Todos]
+      summary: List todos (paginated)
+      parameters:
+        - $ref: '#/components/parameters/IdentifierQuery'
+        - $ref: '#/components/parameters/StatusQuery'
+        - $ref: '#/components/parameters/LimitQuery'
+        - $ref: '#/components/parameters/CursorQuery'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TodoListResponse'
+
+  /api/todos/{id}:
+    get:
+      tags: [Todos]
+      summary: Fetch a todo by ID (scoped by identifier)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/IdentifierQuery'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TodoResponse'
+        '404':
+          description: Not found for this identifier
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+    patch:
+      tags: [Todos]
+      summary: Update a todo (partial)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/IdentifierQuery'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TodoUpdateRequest'
+            examples:
+              sample:
+                value:
+                  title: Write complete PRD
+                  priority: P0
+                  tags: [docs, prd, review]
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TodoResponse'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Not found for this identifier
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+    delete:
+      tags: [Todos]
+      summary: Delete a todo
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/IdentifierQuery'
+      responses:
+        '204':
+          description: No Content
+        '404':
+          description: Not found for this identifier
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /api/chat:
+    post:
+      tags: [Chat]
+      summary: Execute a chat command (list/add/done)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatRequest'
+            examples:
+              list:
+                value:
+                  identifier: john@example.com
+                  message: list
+              add:
+                value:
+                  identifier: john@example.com
+                  message: "add Buy milk |priority=P1 |project=Home |tags=grocery,dairy"
+              done:
+                value:
+                  identifier: john@example.com
+                  message: "done 0f40b8b1-26a7-4c64-b4a0-2f07e5674a83"
+      responses:
+        '200':
+          description: OK (natural language reply + optional data)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatResponse'
+        '400':
+          description: Unrecognized/invalid command
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /api/webhooks/enhance:
+    post:
+      tags: [Webhooks]
+      summary: n8n/LLM enrichment (idempotent upsert of enrichment fields)
+      description: Called by n8n after LLM processes a title; updates `enhanced_description` and `steps`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EnrichmentRequest'
+            examples:
+              enrich:
+                value:
+                  todo_id: 0f40b8b1-26a7-4c64-b4a0-2f07e5674a83
+                  identifier: john@example.com
+                  title: Write SRS
+                  enhanced_description: High-quality SRS covering scope, data, interfaces...
+                  steps: ["Outline", "Fill details", "Review"]
+      responses:
+        '200':
+          description: Updated enrichment
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TodoResponse'
+        '400':
+          description: Malformed payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '404':
+          description: Todo not found for this identifier
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /api/whatsapp:
+    post:
+      tags: [Webhooks]
+      summary: WhatsApp provider webhook (stub; normalize hashtag commands)
+      description: |
+        Accepts provider payloads. If text contains `#to-do-list`, normalize to {command,args,sender}
+        and log it. v1.0 does not mutate DB.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WhatsappWebhookStubRequest'
+      responses:
+        '200':
+          description: OK (always; stub endpoint)
+        '401':
+          description: Signature invalid (if configured)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+
+  /api/health:
+    get:
+      tags: [Health]
+      summary: Health check
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok, ts, version]
+                properties:
+                  ok:
+                    type: boolean
+                    example: true
+                  version:
+                    type: string
+                    example: 1.0.0
+                  ts:
+                    type: string
+                    format: date-time

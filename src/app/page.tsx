@@ -361,20 +361,20 @@ export default function TodoApp() {
               className="block text-sm font-medium mb-2"
               style={{ color: "var(--sls-text-light)" }}
             >
-              Tu Identificador (correo o nombre):
+              Your Identifier (email or name):
             </label>
             <input
               id="userIdentifier"
               type="text"
               value={userIdentifier}
               onChange={(e) => setUserIdentifier(e.target.value.trim())}
-              placeholder="ejemplo@correo.com"
+              placeholder="example@email.com"
               className="w-full px-3 py-2 bg-black/30 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all duration-200"
               style={{ color: "var(--sls-text-light)" }}
             />
             {!userIdentifier && (
               <p className="text-xs mt-2" style={{ color: "var(--sls-text-secondary)" }}>
-                Ingresa tu identificador para ver y crear tus tareas
+                Enter your identifier to view and create your tasks
               </p>
             )}
           </div>
@@ -562,12 +562,12 @@ export default function TodoApp() {
                                   selectedTaskIds={new Set()}
                                   editingTaskId={null}
                                   onToggleComplete={handleToggleComplete}
-                                  onSelect={() => {}}
-                                  onStartEdit={() => {}}
-                                  onSaveEdit={() => {}}
-                                  onCancelEdit={() => {}}
+                                  onSelect={() => { }}
+                                  onStartEdit={() => { }}
+                                  onSaveEdit={() => { }}
+                                  onCancelEdit={() => { }}
                                   onDeleteTask={handleDeleteTask}
-                                  onCyclePriority={() => {}}
+                                  onCyclePriority={() => { }}
                                 />
                               </div>
                               {task.completedAt && (
@@ -612,10 +612,10 @@ export default function TodoApp() {
               </svg>
             </div>
             <h3 className="text-xl font-medium mb-2" style={{ color: "var(--sls-text-light)" }}>
-              Identifícate para comenzar
+              Identify yourself to start
             </h3>
             <p className="text-gray-400 max-w-md mx-auto">
-              Ingresa tu correo electrónico o nombre en el campo de arriba para ver y gestionar tus tareas personales.
+              Enter your email or name in the field above to view and manage your personal tasks.
             </p>
           </div>
         )}
