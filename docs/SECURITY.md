@@ -1,6 +1,6 @@
 # SLS To-Do — Security Posture & Hardening Guide
 
-**Version:** 1.0
+**Version:** 1.1 (Normalized)
 **Status:** Adopt for v1.0 (assessment). Items labeled **[FUTURE]** are ready for the RLS/auth upgrade without refactors.
 **Scope:** App UI (Next.js/Vercel), Server Actions & API routes, Supabase (Postgres), n8n webhook, WhatsApp webhook (stub), optional LLM provider.
 **Non-goal (v1.0):** End-user authentication/SSO. Data is **partitioned** by a user-provided **Identifier**; see compensating controls below.
@@ -56,6 +56,12 @@
 * **All mutations** (create/edit/toggle/delete) run in **Server Actions** or **API routes**.
 * **Client reads** MAY use anon key but MUST include `identifier_norm` in where-clauses.
 * **Service role**: only load on the server (`process.env.SUPABASE_SERVICE_ROLE`); never in client bundles.
+
+> **RLS Status — v1.0**
+> 
+> RLS is **not enabled** in v1.0. Data isolation relies on application-level partitioning by `identifier_norm`.  
+> The schema and queries are **RLS-ready** and can be enabled post-v1.0 without UI refactors.  
+> There is **no JWT/SSO** in v1.0; users provide an Identifier (email or name) and lock it.
 
 **DO**:
 
@@ -247,7 +253,7 @@ When ready to hard-isolate per user/account:
 * **Eradicate**: patch, rotate secrets, add tests.
 * **Recover**: verify `/api/health`, run smoke tests.
 * **Post-mortem**: document root cause, add regression tests.
-
+	
 **Disclosure** (for public repo): provide `SECURITY.md` contact or use GitHub Security Advisories; respond within reasonable timeframe; avoid sharing exploit details before fix.
 
 ---

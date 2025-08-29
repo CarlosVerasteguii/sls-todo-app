@@ -1,6 +1,6 @@
 # SLS To-Do — n8n Workflow (Title Enrichment)
 
-**Version:** 1.0  
+**Version:** 1.1 (Normalized)  
 **Status:** Approved for implementation  
 **Owners:** Integrations (n8n), Backend
 

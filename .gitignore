@@ -16,8 +16,12 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files
-.env*
+# --- ENV: NO subir secretos ---
+# Ignora TODO lo que sea .env*
+.env
+.env.*
+# Permite SOLO la plantilla (se sube al repo)
+!.env.example
 
 # vercel
 .vercel
@@ -25,3 +29,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+
+
+.cursorignore

@@ -1,6 +1,6 @@
 # SLS To-Do — Entity–Relationship Design (ERD)
 
-**Version:** 1.0  
+**Version:** 1.1 (Normalized)  
 **Status:** Approved for implementation  
 **Source of truth:** Mirrors PRD §1.4 and API-SPEC.md §1.1.  
 **Scope:** Minimal schema required for v1.0 with forward-compat fields for Chat/LLM enrichment and WhatsApp adapter (no refactors later).
@@ -86,8 +86,11 @@ CHECK (jsonb_typeof(tags) = 'array') -- when not null
 ```sql
 CREATE INDEX idx_todos_identifier_norm ON todos (identifier_norm);
 CREATE INDEX idx_todos_identifier_completed ON todos (identifier_norm, completed);
-CREATE INDEX idx_todos_created_at ON todos (created_at DESC);
+CREATE INDEX idx_todos_created_at ON todos (created_at);
+-- Note: Postgres doesn't materialize DESC in btree; still helps planner for ORDER BY recent
 ```
+
+**Nota**: El índice `created_at` (btree) ayuda al planner para ordenar por recientes, aunque Postgres no materializa DESC en btree.
 
 ### Updated-at trigger (Postgres)
 
@@ -138,7 +141,8 @@ create index if not exists idx_todos_identifier_completed
   on public.todos (identifier_norm, completed);
 
 create index if not exists idx_todos_created_at
-  on public.todos (created_at desc);
+on public.todos (created_at);
+-- Note: Postgres doesn't materialize DESC in btree; still helps planner for ORDER BY recent
 
 create or replace function public.set_updated_at()
 returns trigger language plpgsql as $$

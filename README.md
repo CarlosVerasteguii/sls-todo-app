@@ -2,7 +2,7 @@
 
 > A production-style To-Do app built with **Next.js + Supabase + Vercel**, scoped by a user-provided **Identifier** (email or name). From day-1 it is architected to plug in **Chat (n8n + LLM)** and a **WhatsApp** adapter—without refactors.
 
-**Status:** v1.0 (assessment-ready)  
+**Status:** v1.1 (assessment-ready)  
 **Live App:** `<TBD_APP_URL>` • **Chat UI:** `<TBD_CHAT_URL>` • **Health:** `<TBD_APP_URL>/api/health`
 
 ---
@@ -27,7 +27,7 @@
 **Clone & install**
 
 ```bash
-git clone https://github.com/<you>/sls-todo-app.git
+git clone https://github.com/<CarlosVerasteguii>/sls-todo-app.git
 cd sls-todo-app
 pnpm install
 ```
@@ -88,7 +88,7 @@ returns trigger language plpgsql as $$
 begin
   new.updated_at = now();
   return new;
-end; $$;
+end; $$
 
 drop trigger if exists trg_set_updated_at on public.todos;
 create trigger trg_set_updated_at
@@ -126,7 +126,7 @@ pnpm dev
 
 ## 3) API (server boundary)
 
-All writes go through Server Actions and/or API routes. Full contracts: **`/docs/API-SPEC.md`** (OpenAPI file coming next).
+All writes go through Server Actions and/or API routes. Full contracts: **`/docs/API-SPEC.md`** (OpenAPI available in **`/docs/API-SPEC.openapi.yaml`**).
 
 Key routes (summary):
 
@@ -136,7 +136,7 @@ Key routes (summary):
 * `DELETE /api/todos/:id?identifier=...` — delete
 * `POST /api/chat` — parse chat command → CRUD
 * `POST /api/webhooks/enhance` — n8n PATCH enrichment (`enhanced_description`, `steps`)
-* `POST /api/whatsapp` — **stub** normalize `#to-do-list` commands (no DB writes)
+* `POST /api/whatsapp` — **stub** normalize `#to-do-list` commands (no DB writes). **Note**: May respond 401/403 if signature validation enabled (see `docs/WHATSAPP-PLAYBOOK.md`).
 * `GET /api/health` — health probe
 
 **Error envelope**
@@ -151,7 +151,7 @@ Key routes (summary):
 
 * **Next.js (Vercel)** UI + Server Actions + API routes
 * **Supabase Postgres** as source of truth
-* **n8n** orchestrates **LLM** enrichment (fire-and-forget)
+* **n8n** orchestrates **LLM** enrichment (fire-and-fire)
 * **WhatsApp** provider webhook (**stub** in v1.0)
 
 Diagrams, flows, decisions: **`/docs/ARCHITECTURE.md`**
@@ -167,6 +167,12 @@ Details & DDL: **`/docs/ERD.md`** + **`/docs/DB-SCHEMA.sql`**.
 ---
 
 ## 6) Security & Privacy (assessment posture)
+
+> **RLS Status — v1.0**
+> 
+> RLS is **not enabled** in v1.0. Data isolation relies on application-level partitioning by `identifier_norm`.  
+> The schema and queries are **RLS-ready** and can be enabled post-v1.0 without UI refactors.  
+> There is **no JWT/SSO** in v1.0; users provide an Identifier (email or name) and lock it.
 
 * **No traditional auth**. Isolation is **best-effort** via `identifier_norm` filters; acceptable for this assessment.
 * **Secrets** never in Git; use `.env.local` / Vercel env.
@@ -242,9 +248,9 @@ Details & DDL: **`/docs/ERD.md`** + **`/docs/DB-SCHEMA.sql`**.
 ## 12) FAQ
 
 **Why no auth?** Assessment requirement. We partition by Identifier; for production, see SECURITY.md (RLS + Edge Functions).  
-**What if n8n/LLM is down?** Core CRUD unaffected. Enrichment is fire-and-forget and non-blocking.  
-**How do I switch datasets?** **Unlock** → enter another Identifier → **Lock**.  
-**Can I drive it from Chat?** Yes, via `/api/chat` or the Chat page (same DB).  
+**What if n8n/LLM is down?** Core CRUD unaffected. Enrichment is fire-and-forget and non-blocking.
+**How do I switch datasets?** **Unlock** → enter another Identifier → **Lock**.
+**Can I drive it from Chat?** Yes, via `/api/chat` or the Chat page (same DB).
 **WhatsApp works now?** The webhook is a **stub** (normalizes `#to-do-list` messages). Enabling mutations later won't require DB/UI refactors.
 
 ---

@@ -205,6 +205,7 @@ components:
         message:
           type: string
           description: |
+            The command to be executed. The server uses a deterministic parser for these commands (no LLM is involved).
             Supported (case-insensitive):
             - `list`
             - `add <title> |priority=P0|P1|P2|P3 |project=<text> |tags=a,b`
@@ -381,6 +382,9 @@ paths:
     delete:
       tags: [Todos]
       summary: Delete a todo
+      description: |
+        Deletes a todo by its ID. Note: The server performs a hard delete. 
+        The client-side 'Undo' feature works by re-creating the task, which will result in a new task ID.
       parameters:
         - name: id
           in: path
@@ -514,7 +518,7 @@ paths:
                     example: true
                   version:
                     type: string
-                    example: 1.0.0
+                    example: 1.1.0
                   ts:
                     type: string
                     format: date-time

@@ -1,6 +1,6 @@
 # SLS To-Do — WhatsApp Playbook (Evolution API)
 
-**Version:** 1.0  
+**Version:** 1.1 (Normalized)  
 **Status:** Approved for implementation (stub)  
 **Owners:** Integrations (WhatsApp), Backend  
 **Scope:** Inbound webhook from Evolution API → normalize hashtagged commands → log only (no DB writes in v1.0). Future evolution to DB mutations is defined here.
@@ -29,6 +29,13 @@
 
 * We treat Evolution API as provider "evolution" in logs/config.
 * **Webhook:** Evolution posts JSON to our endpoint on inbound messages.
+* **Sender Number Configuration**:
+  - The designated sender number for the service (e.g., `+528332519900`) must be configured as an environment variable. Do not hardcode this value in the application.
+  - Add the following line to your `.env` file:
+    ```bash
+    WHATSAPP_SENDER_NUMBER=+528332519900
+    ```
+  - While the v1.0 stub does not send messages, this variable will be used for sending replies if that functionality is enabled in the future.
 * **Payload shape** can vary; we assume one or more of the following fields may exist:
   * `message` / `body` / `text` (string)
   * `messages[0].text.body`, `messages[0].from`, `messages[0].id`, `messages[0].timestamp`

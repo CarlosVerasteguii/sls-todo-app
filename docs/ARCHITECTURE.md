@@ -1,6 +1,6 @@
 # SLS To-Do — Architecture
 
-**Version:** 1.0  
+**Version:** 1.1 (Normalized)  
 **Status:** Approved for implementation  
 **Owners:** Tech Lead (Carlos), Engineering (Full-stack)
 
@@ -72,7 +72,7 @@ flowchart TD
   API --> TBL
   API --> ENH
   ENH --> LLM
-  ENH --> TBL
+  ENH --> API
   WAUser --> WA --> API
 
 
@@ -91,12 +91,16 @@ flowchart TD
 - **UI (React/TypeScript, Tailwind, shadcn/ui)**: My Tasks, Identifier lock, lists, composer, inline edit, completed collapse, keyboard shortcuts.
 - **Server Actions**: Preferred for low-latency CRUD (create/edit/toggle/delete) when co-located with UI.
 - **API Routes**: Explicit contracts for:
-  - `/api/chat` (Chat adapter)
+  - `/api/chat` (Chat adapter - deterministic parsing, no LLM)
   - `/api/webhooks/enhance` (n8n webhook)
   - `/api/whatsapp` (provider webhook stub)
   - `/api/health` (ops)
 
+**Chat UI mínima**: Página `/chat` con input de texto y transcripts sencillos. Back-end parsea determinista los comandos y llama las mismas APIs de CRUD.
+
 **Guideline**: Mutations SHOULD be Server Actions where ergonomic; cross-system integrations SHOULD be API routes.
+
+**n8n Integration**: **v1.0**: n8n does NOT write directly to DB. Official path: callback `/api/webhooks/enhance` for validation, security, and auditing. **[FUTURE]**: Direct DB only if RLS/Edge policies and service policies are documented.
 
 ### 3.2 Data Access
 
@@ -106,7 +110,7 @@ flowchart TD
 ### 3.3 Orchestration (n8n)
 
 - Receives events on create/title-edit; calls LLM (and optional web search) and updates `enhanced_description`, `steps` in todos.
-- **Loose coupling**: app emits small payload; n8n PATCHes via direct DB adapter or calls back to `/api/webhooks/enhance`.
+- **Loose coupling**: app emits small payload; n8n calls back to `/api/webhooks/enhance` (official path). **[FUTURE]**: Alternative "direct DB" only if documented service policy and RLS/Edge Functions.
 
 ### 3.4 WhatsApp Provider
 
@@ -161,15 +165,17 @@ sequenceDiagram
   DB-->>SA: row(id, timestamps)
   SA-->>U: 200 {row}
   Note right of U: Optimistic UI reconciled with id/timestamps
-  U--)N: Fire-and-forget POST /api/webhooks/enhance (todo_id, title, identifier)
-  N->>DB: PATCH enhanced_description/steps
-  U->>DB: (subsequent revalidation/read shows enrichment)
+  U--)N: Fire-and-forget POST to n8n webhook (todo_id, title, identifier)
+  Note right of N: n8n calls LLM, then calls back to app
+  N->>SA: POST /api/webhooks/enhance (payload)
+  SA->>DB: PATCH todos with enrichment
+  DB-->>SA: updated row
 
 ### 5.2 Edit (inline), 5.3 Toggle, 5.4 Delete+Undo
 
 Same boundary pattern: UI → SA/API → DB, with optimistic update and reconciliation.
 
-**Undo window**: 5s toast; on Undo, client calls restore endpoint (or cancels pending delete if delayed).
+**Undo window**: 5s toast; on Undo, client re-creates the task with cached fields (id may change). Server does hard delete immediately; no "pending delete" state exists.
 
 ### 5.5 Chat Command (`/api/chat`)
 
@@ -241,6 +247,12 @@ Full OpenAPI in `docs/API-SPEC.openapi.yaml`. Below is the tactical summary.
 
 
 ## 7) Security Model & Hardening
+
+> **RLS Status — v1.0**
+> 
+> RLS is **not enabled** in v1.0. Data isolation relies on application-level partitioning by `identifier_norm`.  
+> The schema and queries are **RLS-ready** and can be enabled post-v1.0 without UI refactors.  
+> There is **no JWT/SSO** in v1.0; users provide an Identifier (email or name) and lock it.
 
 - **No auth** (assessment constraint). Partition by Identifier:
   - **Normalize**: lowercase, trim, collapse spaces.

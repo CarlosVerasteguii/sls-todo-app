@@ -1,6 +1,6 @@
 -- ======================================================================
 -- SLS To-Do — Database Schema (Supabase / PostgreSQL)
--- Version: 1.0
+-- Version: 1.1
 -- Source of truth: PRD, ARCHITECTURE.md, ERD.md, API-SPEC.md
 -- Notes:
 --  - Partitioning by user-provided Identifier (no traditional auth in v1.0)
@@ -24,6 +24,13 @@ immutable
 as $$
   select btrim(regexp_replace(coalesce(t, ''), '\s+', ' ', 'g'));
 $$;
+
+-- NOTE (v1.0):
+-- API enforces identifier whitelist `^[A-Za-z0-9@._\- ]{1,80}$`.
+-- DB intentionally does NOT enforce character whitelist; it normalizes `identifier_raw`
+-- into `identifier_norm` (lowercased + collapsed whitespace). This keeps the schema flexible
+-- and RLS-ready without UI refactors. If stricter DB-level validation is desired, enable
+-- the optional CHECK below.
 
 -- Normalize identifier: lowercase + collapsed whitespace + trim.
 create or replace function public.normalize_identifier(id_raw text)
@@ -77,8 +84,7 @@ as $$
 begin
   new.updated_at = now();
   return new;
-end;
-$$;
+end; $$;
 
 -- Enforce identifier normalization from identifier_raw
 create or replace function public.enforce_identifier_norm()
@@ -260,3 +266,12 @@ execute function public.enforce_tags_sanitization();
 -- ======================================================================
 -- End of Schema
 -- ======================================================================
+
+-- OPTIONAL STRICT VALIDATION (DISABLED BY DEFAULT)
+-- create or replace function public.is_valid_identifier(v text)
+-- returns boolean language sql immutable as $$
+--   select v ~ '^[A-Za-z0-9@._\- ]{1,80}$';
+-- $$;
+-- alter table public.todos
+--   add constraint todos_identifier_raw_valid
+--   check (public.is_valid_identifier(identifier_raw));
