@@ -1,109 +1,186 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import type { Task, Priority, TaskFilters, UndoAction } from "@/types/task"
 import { getSortedTasks, filterTasks, migrateTask, UndoManager } from "@/lib/task-utils"
+import { ToastNotification } from "@/components/notification-toast"
 
-const STORAGE_KEY = "sls.todo.v1"
-const METRICS_KEY = "sls.todo.metrics.v1"
-
-interface TaskMetrics {
-  createdToday: number
-  completedToday: number
-  totalEstimatedMin: number
-  totalActualMin: number
+interface UseTasksOptions {
+  userIdentifier?: string
+  addNotification: (notification: Omit<ToastNotification, "id">) => void
 }
 
-export function useTasks(userIdentifier?: string) {
+export function useTasks({ userIdentifier, addNotification }: UseTasksOptions) {
   const [tasks, setTasks] = useState<Task[]>([])
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set())
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null)
   const [filters, setFilters] = useState<TaskFilters>({ status: ["active", "snoozed"] })
   const [undoManager] = useState(() => new UndoManager())
   const [lastUndoAction, setLastUndoAction] = useState<UndoAction | null>(null)
+  const [isIdentifierLocked, setIsIdentifierLocked] = useState<boolean>(false)
 
-  // Load tasks from localStorage on mount
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY)
-      if (stored) {
-        const data = JSON.parse(stored)
-        const migratedTasks = data.tasks?.map(migrateTask) || []
-        setTasks(migratedTasks)
-      }
-    } catch (error) {
-      console.error("Failed to load tasks:", error)
-    }
-  }, [])
-
-  // Save tasks to localStorage whenever tasks change
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ tasks, version: 1 }))
-    } catch (error) {
-      console.error("Failed to save tasks:", error)
-    }
-  }, [tasks])
+  // New states for API calls
+  const [loading, setLoading] = useState<boolean>(false)
+  const [error, setError] = useState<string | null>(null)
+  const [requestId, setRequestId] = useState<string | null>(null)
+  const abortControllerRef = useRef<AbortController | null>(null)
 
   const createTask = useCallback(
-    (title: string, options: Partial<Task> = {}) => {
-      const newTask: Task = {
-        id: crypto.randomUUID(),
-        title: title.trim(),
-        status: "active",
-        priority: "P2",
-        tags: [],
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        userIdentifier: userIdentifier,
-        ...options,
+    async (title: string, options: Partial<Task> = {}) => { // Made async
+      if (!userIdentifier) {
+        addNotification({
+          type: "error",
+          title: "Action Blocked",
+          message: "Please lock an identifier before creating tasks.",
+        });
+        return null; // Return null on early exit
       }
 
-      setTasks((prev) => [...prev, newTask])
+      setLoading(true); // Use the main loading state for now
+      setError(null);
+      setRequestId(null);
 
-      undoManager.addAction({
-        type: "create",
-        taskId: newTask.id,
-        timestamp: Date.now(),
-      })
+      try {
+        const payload = {
+          identifier: userIdentifier,
+          title: title.trim(),
+          ...options,
+          // Ensure tags are always an array, even if empty or undefined
+          tags: options.tags || [],
+        };
 
-      return newTask
+        const response = await fetch("/api/todos", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        });
+
+        const data = await response.json();
+
+        if (data.ok) {
+          const newTaskFromServer: Task = data.data;
+          setTasks((prev) => [newTaskFromServer, ...prev]); // Prepend new task
+          addNotification({
+            type: "success",
+            title: "Task created",
+            message: `"${newTaskFromServer.title}" has been added.`,
+          });
+
+          undoManager.addAction({ // Still track for undo, but with server ID
+            type: "create",
+            taskId: newTaskFromServer.id,
+            timestamp: Date.now(),
+          });
+          return newTaskFromServer;
+        } else {
+          setError(data.error?.message || "An unknown error occurred");
+          setRequestId(data.request_id || null);
+          addNotification({
+            type: "error",
+            title: "API Error",
+            message: data.error?.message || "Failed to create task.",
+          });
+          console.warn("API Error (createTask):", { code: data.error?.code, request_id: data.request_id });
+          return null;
+        }
+      } catch (err: any) {
+        setError(err.message || "Failed to create task");
+        addNotification({
+          type: "error",
+          title: "Network Error",
+          message: err.message || "Failed to create task.",
+        });
+        console.error("Failed to create task:", err);
+        return null;
+      } finally {
+        setLoading(false);
+      }
     },
-    [undoManager, userIdentifier],
+    [userIdentifier, addNotification, undoManager, setLoading, setError, setRequestId],
   )
 
   const updateTask = useCallback(
-    (id: string, updates: Partial<Task>) => {
-      setTasks((prev) => {
-        const taskIndex = prev.findIndex((t) => t.id === id)
-        if (taskIndex === -1) return prev
+    async (id: string, updates: Partial<Task>) => { // Made async
+      if (!userIdentifier) {
+        addNotification({
+          type: "error",
+          title: "Action Blocked",
+          message: "Please lock an identifier before updating tasks.",
+        });
+        return null; // Return null on early exit
+      }
 
-        const oldTask = prev[taskIndex]
-        const updatedTask = {
-          ...oldTask,
+      setLoading(true); // Use the main loading state for now
+      setError(null);
+      setRequestId(null);
+
+      try {
+        const payload = {
+          identifier: userIdentifier, // Identifier is required for PATCH
           ...updates,
-          updatedAt: new Date().toISOString(),
-          completedAt:
-            updates.status === "completed"
-              ? new Date().toISOString()
-              : updates.status === "active"
-                ? undefined
-                : oldTask.completedAt,
+          // Ensure tags are always an array if present in updates
+          ...(updates.tags !== undefined && { tags: updates.tags || [] }),
+        };
+
+        const response = await fetch(`/api/todos/${id}`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        });
+
+        const data = await response.json();
+
+        if (data.ok) {
+          const updatedTaskFromServer: Task = data.data;
+          setTasks((prev) =>
+            prev.map((task) => (task.id === id ? updatedTaskFromServer : task))
+          );
+          addNotification({
+            type: "success",
+            title: "Task updated",
+            message: `"${updatedTaskFromServer.title}" has been updated.`,
+          });
+
+          // Undo manager logic for update
+          const oldTask = tasks.find(t => t.id === id); // Need to capture old state before update
+          if (oldTask) {
+            undoManager.addAction({
+              type: "update",
+              taskId: id,
+              previousState: oldTask,
+              timestamp: Date.now(),
+            });
+          }
+          return updatedTaskFromServer;
+        } else {
+          setError(data.error?.message || "An unknown error occurred");
+          setRequestId(data.request_id || null);
+          addNotification({
+            type: "error",
+            title: "API Error",
+            message: data.error?.message || "Failed to update task.",
+          });
+          console.warn("API Error (updateTask):", { code: data.error?.code, request_id: data.request_id });
+          return null;
         }
-
-        undoManager.addAction({
-          type: "update",
-          taskId: id,
-          previousState: oldTask,
-          timestamp: Date.now(),
-        })
-
-        const newTasks = [...prev]
-        newTasks[taskIndex] = updatedTask
-        return newTasks
-      })
+      } catch (err: any) {
+        setError(err.message || "Failed to update task");
+        addNotification({
+          type: "error",
+          title: "Network Error",
+          message: err.message || "Failed to update task.",
+        });
+        console.error("Failed to update task:", err);
+        return null;
+      } finally {
+        setLoading(false);
+      }
     },
-    [undoManager],
+    [userIdentifier, addNotification, undoManager, tasks, setLoading, setError, setRequestId], // Added tasks to dependencies
   )
 
   const deleteTask = useCallback(
@@ -283,6 +360,76 @@ export function useTasks(userIdentifier?: string) {
     return () => clearInterval(interval)
   }, [])
 
+  const loadTasks = useCallback(async (identifier: string) => {
+    if (!identifier) {
+      setTasks([])
+      return
+    }
+
+    // Abort any ongoing fetch requests
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+    }
+    abortControllerRef.current = new AbortController()
+    const signal = abortControllerRef.current.signal
+
+    setLoading(true)
+    setError(null)
+    setRequestId(null)
+    setTasks([])
+
+    try {
+      const response = await fetch(`/api/todos?identifier=${encodeURIComponent(identifier)}`, { signal })
+      const data = await response.json()
+
+      if (data.ok) {
+        setTasks(data.items || [])
+        setRequestId(data.request_id || null)
+        console.log("Fetched tasks length:", (data.items || []).length)
+      } else {
+        setError(data.error?.message || "An unknown error occurred")
+        setRequestId(data.request_id || null)
+        addNotification({
+          type: "error",
+          title: "API Error",
+          message: data.error?.message || "An unknown error occurred",
+        })
+        console.warn("API Error:", { code: data.error?.code, request_id: data.request_id })
+      }
+    } catch (err: any) {
+      if (err.name === 'AbortError') {
+        console.log('Fetch aborted:', err.message);
+        return;
+      }
+      setError(err.message || "Failed to load tasks")
+      addNotification({
+        type: "error",
+        title: "Network Error",
+        message: err.message || "Failed to load tasks",
+      })
+      console.error("Failed to load tasks:", err)
+    } finally {
+      setLoading(false)
+      abortControllerRef.current = null;
+    }
+  }, [addNotification])
+
+  useEffect(() => {
+    if (userIdentifier && isIdentifierLocked) {
+      loadTasks(userIdentifier)
+    } else if (!isIdentifierLocked) {
+      // If unlocked, clear tasks and reset states
+      setTasks([])
+      setLoading(false)
+      setError(null)
+      setRequestId(null)
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+        abortControllerRef.current = null;
+      }
+    }
+  }, [userIdentifier, isIdentifierLocked, loadTasks])
+
   const userFilteredTasks = userIdentifier ? tasks.filter((task) => task.userIdentifier === userIdentifier) : []
 
   const filteredAndSortedTasks = getSortedTasks(filterTasks(userFilteredTasks, filters))
@@ -307,5 +454,10 @@ export function useTasks(userIdentifier?: string) {
     undo,
     canUndo: lastUndoAction && Date.now() - lastUndoAction.timestamp < 5000,
     lastUndoAction,
+    isIdentifierLocked,
+    setIsIdentifierLocked,
+    loading,
+    error,
+    requestId,
   }
 }

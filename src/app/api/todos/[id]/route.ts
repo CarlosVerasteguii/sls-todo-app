@@ -18,8 +18,8 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const supabase = createClient();
-  const { id } = params;
+  const supabase = await createClient();
+  const { id } = await params;
 
   try {
     const body = await request.json();
@@ -81,8 +81,8 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const supabase = createClient();
-  const { id } = params;
+  const supabase = await createClient();
+  const { id } = await params;
 
   const { data, error } = await supabase
     .from('todos')

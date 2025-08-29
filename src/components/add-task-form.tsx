@@ -12,9 +12,10 @@ interface AddTaskFormProps {
     tags: string[]
     project?: string
   }) => void
+  disabled?: boolean
 }
 
-export function AddTaskForm({ onAddTask }: AddTaskFormProps) {
+export function AddTaskForm({ onAddTask, disabled }: AddTaskFormProps) {
   const [title, setTitle] = useState("")
   const [description, setDescription] = useState("")
   const [priority, setPriority] = useState<Priority>("P2")
@@ -178,7 +179,7 @@ export function AddTaskForm({ onAddTask }: AddTaskFormProps) {
               Cancel
             </button>
           )}
-          <button type="submit" className="btn-primary px-6 py-2 font-medium">
+          <button type="submit" className="btn-primary px-6 py-2 font-medium" disabled={disabled}>
             Add Task
           </button>
         </div>

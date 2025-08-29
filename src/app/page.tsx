@@ -9,6 +9,17 @@ import { useTasks } from "@/hooks/use-tasks"
 export default function TodoApp() {
   const [userIdentifier, setUserIdentifier] = useState<string>("")
 
+  const [notifications, setNotifications] = useState<ToastNotification[]>([])
+
+  const addNotification = useCallback((notification: Omit<ToastNotification, "id">) => {
+    const id = Date.now().toString()
+    setNotifications((prev) => [...prev, { ...notification, id }])
+  }, [])
+
+  const removeNotification = useCallback((id: string) => {
+    setNotifications((prev) => prev.filter((n) => n.id !== id))
+  }, [])
+
   const {
     tasks,
     allTasks,
@@ -29,39 +40,16 @@ export default function TodoApp() {
     undo,
     canUndo,
     lastUndoAction,
-  } = useTasks(userIdentifier)
+    isIdentifierLocked,
+    setIsIdentifierLocked,
+    loading, // Use loading from useTasks
+    error, // Use error from useTasks
+    requestId, // Use requestId from useTasks
+  } = useTasks({ userIdentifier, addNotification }) // Pass addNotification
 
-  const [loading, setLoading] = useState(true)
-  const [notifications, setNotifications] = useState<ToastNotification[]>([])
+  // Removed local loading state and its useEffect
+
   const [showCompleted, setShowCompleted] = useState(false)
-
-  const addNotification = useCallback((notification: Omit<ToastNotification, "id">) => {
-    const id = Date.now().toString()
-    setNotifications((prev) => [...prev, { ...notification, id }])
-  }, [])
-
-  const removeNotification = useCallback((id: string) => {
-    setNotifications((prev) => prev.filter((n) => n.id !== id))
-  }, [])
-
-  useEffect(() => {
-    const initializeApp = async () => {
-      if (userIdentifier && allTasks.length === 0) {
-        createTask("Design the user interface", { priority: "P1" })
-        createTask("Implement authentication system", {
-          status: "completed",
-          priority: "P0",
-          completedAt: new Date().toISOString(),
-        })
-        createTask("Set up database integration", { priority: "P2" })
-      }
-
-      await new Promise((resolve) => setTimeout(resolve, 1200))
-      setLoading(false)
-    }
-
-    initializeApp()
-  }, [userIdentifier, allTasks.length, createTask])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -363,15 +351,28 @@ export default function TodoApp() {
             >
               Your Identifier (email or name):
             </label>
-            <input
-              id="userIdentifier"
-              type="text"
-              value={userIdentifier}
-              onChange={(e) => setUserIdentifier(e.target.value.trim())}
-              placeholder="example@email.com"
-              className="w-full px-3 py-2 bg-black/30 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all duration-200"
-              style={{ color: "var(--sls-text-light)" }}
-            />
+            <div className="flex gap-2">
+              <input
+                id="userIdentifier"
+                type="text"
+                value={userIdentifier}
+                onChange={(e) => setUserIdentifier(e.target.value.trim())}
+                placeholder="example@email.com"
+                className="w-full px-3 py-2 bg-black/30 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent transition-all duration-200"
+                style={{ color: "var(--sls-text-light)" }}
+                disabled={isIdentifierLocked}
+              />
+              <button
+                onClick={() => setIsIdentifierLocked(!isIdentifierLocked)}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200 ${isIdentifierLocked
+                  ? "bg-red-600 hover:bg-red-700 text-white"
+                  : "bg-blue-600 hover:bg-blue-700 text-white"}
+                ${!userIdentifier ? "opacity-50 cursor-not-allowed" : ""}`}
+                disabled={!userIdentifier}
+              >
+                {isIdentifierLocked ? "Unlock" : "Lock"}
+              </button>
+            </div>
             {!userIdentifier && (
               <p className="text-xs mt-2" style={{ color: "var(--sls-text-secondary)" }}>
                 Enter your identifier to view and create your tasks
@@ -379,7 +380,7 @@ export default function TodoApp() {
             )}
           </div>
 
-          {userIdentifier && (
+          {isIdentifierLocked && (
             <>
               {/* Stats and Controls */}
               <div className="flex items-center justify-between mb-6">
@@ -465,7 +466,7 @@ export default function TodoApp() {
           )}
         </header>
 
-        {userIdentifier ? (
+        {isIdentifierLocked ? (
           <>
             {/* Undo Toast */}
             {canUndo && lastUndoAction && (
@@ -478,10 +479,10 @@ export default function TodoApp() {
             )}
 
             <div className="animate-slide-in-up" style={{ animationDelay: "0.2s" }}>
-              <AddTaskForm onAddTask={handleAddTask} />
+              <AddTaskForm onAddTask={handleAddTask} disabled={!isIdentifierLocked} />
             </div>
 
-            <div className="animate-slide-in-up" style={{ animationDelay: "0.3s" }}>
+            <div className="animate-slide-in-up" style={{ animationDelay: "0.3s"}}>
               <TaskList
                 tasks={activeTasks}
                 selectedTaskIds={selectedTaskIds}
@@ -490,9 +491,9 @@ export default function TodoApp() {
                 onSelect={handleSelect}
                 onStartEdit={setEditingTaskId}
                 onSaveEdit={handleSaveEdit}
-                onCancelEdit={() => setEditingTaskId(null)}
+                onCancelEdit={() => { }}
                 onDeleteTask={handleDeleteTask}
-                onCyclePriority={handleCyclePriority}
+                onCyclePriority={() => { }}
               />
             </div>
 
@@ -510,7 +511,7 @@ export default function TodoApp() {
                     <svg className="w-5 h-5 text-green-400" fill="currentColor" viewBox="0 0 20 20">
                       <path
                         fillRule="evenodd"
-                        d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                        d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4a1 1 0 010-1.414z"
                         clipRule="evenodd"
                       />
                     </svg>
@@ -521,7 +522,7 @@ export default function TodoApp() {
                       {showCompleted ? "Hide" : "Show"}
                     </span>
                     <svg
-                      className={`w-5 h-5 transition-transform duration-200 text-white ${showCompleted ? "rotate-180" : ""}`}
+                      className={`w-5 h-5 transition-transform duration-200 ${showCompleted ? "rotate-180" : ""}`}
                       fill="currentColor"
                       viewBox="0 0 20 20"
                     >
@@ -590,7 +591,7 @@ export default function TodoApp() {
                           <svg className="w-12 h-12 mx-auto mb-3 opacity-50" fill="currentColor" viewBox="0 0 20 20">
                             <path
                               fillRule="evenodd"
-                              d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                              d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4a1 1 0 010-1.414z"
                               clipRule="evenodd"
                             />
                           </svg>

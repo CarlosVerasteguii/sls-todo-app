@@ -15,7 +15,7 @@ const todoCreateSchema = z.object({
 });
 
 export async function GET(request: NextRequest) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { searchParams } = new URL(request.url);
   const identifier = searchParams.get('identifier');
 
@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   try {
     const body = await request.json();
