@@ -257,3 +257,64 @@
 **Recuerda (Guardrails):**
 - La API es la única fuente de la verdad para el filtrado de datos por `identifier`. No se deben añadir filtros de este tipo en el cliente.
 - El flujo `Todo`→`Task` es crucial para que la UI funcione. Toda data de la API debe ser migrada antes de usarse en el estado.
+
+---
+
+## Fase 2B - Fix: Align DELETE Request with API Contract
+
+**When (America/Monterrey):** 2025-08-30 15:30:00 CST (UTC-6)
+**Status:** ✅ Done
+**Changed Files:**
+- `src/hooks/use-tasks.ts`
+
+**What & Why:**
+- **Problema:** La función `deleteTask` enviaba el `identifier` como un `query parameter`, pero el endpoint de la API esperaba recibirlo en el `body` para realizar la validación de pertenencia.
+- **Solución:** Se modificó la llamada `fetch` en `deleteTask` para incluir un `body` con el `identifier` en formato JSON.
+- **Impacto:** Se cierra la vulnerabilidad de "Broken Access Control" en la operación de borrado, y ahora el frontend y el backend están alineados.
+
+**Verification:**
+- **`pnpm tsc --noEmit`:** Pasó sin errores.
+- **`pnpm build`:** Se completó exitosamente.
+- **Consistencia:** La petición `DELETE` ahora sigue el mismo patrón que `PATCH`, enviando datos de autorización en el `body`.
+
+---
+
+## Fase 2C - Validación: Keyboard Shortcuts
+
+**When (America/Monterrey):** 2025-01-27 16:45:00 CST (UTC-6)
+**Status:** ✅ Validated
+**Changed Files:**
+- None.
+
+**What & Why:**
+- Se realizó una auditoría completa de la implementación de atajos de teclado contra los documentos `SRS.md` y `TEST-CASES.md`.
+- **Conclusión:** La implementación actual es robusta, completa y cumple con todos los requerimientos funcionales especificados.
+- No se identificaron brechas críticas que requieran cambios de código. Las pequeñas inconsistencias (ciclo de prioridad, alcance de Undo) se consideran evoluciones del diseño y son aceptables.
+
+**Verification:**
+- **Auditoría de Código:** Completada.
+- **Pruebas Manuales (Confirmación):** El comportamiento de `E`, `P`, `Delete`, `CTRL+A`, `CTRL+Z` y `ESC` coincide con la implementación esperada.
+
+## Fix: Wire Edit Form Props (saveEdit/cancelEdit) End-to-End
+
+**When (America/Monterrey):** 2025-08-30
+**Status:** ✅ Done
+
+**Changed Files:**
+- `src/app/page.tsx`
+- `src/components/task-list.tsx`
+- `src/components/task-item.tsx`
+
+**What & Why:**
+- Se completó el cableado de las funciones de edición para que los botones del formulario funcionen de extremo a extremo:
+  - `page.tsx` ahora pasa `saveEdit` y `cancelEdit` al componente `<TaskList />` en la lista activa y en la lista de completadas embebida.
+  - `task-list.tsx` acepta las props `saveEdit` y `cancelEdit` y las re‑pasa a cada `<TaskItem />` dentro del `.map()`.
+  - `task-item.tsx` ahora requiere las props `saveEdit` y `cancelEdit` y las inyecta en `<EditTaskForm />` como `onSave` y `onCancel`.
+- Resultado: los botones "Save Changes" y "Cancel" en `EditTaskForm` invocan las funciones del hook `useTasks` vía `TaskItem`/`TaskList`.
+
+**Verification:**
+- Abrir el modo edición de una tarea y:
+  - Click en "Save Changes" actualiza la tarea y cierra el formulario.
+  - Click en "Cancel" descarta los cambios y cierra el formulario.
+- Navegar con el teclado (E para editar) y confirmar que Guardar/Cancelar siguen funcionando.
+- `tsc --noEmit`: sin errores de tipos relacionados a las nuevas props requeridas.

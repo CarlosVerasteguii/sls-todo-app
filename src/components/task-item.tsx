@@ -15,6 +15,9 @@ interface TaskItemProps {
   onSelect: (taskId: string, multiSelect?: boolean) => void
   focusedTaskId: string | null; // New prop
   onFocus: (taskId: string) => void; // New prop
+  // Edit wiring from parent (TaskList/page)
+  saveEdit: (taskId: string, updates: Partial<Task>) => void
+  cancelEdit: () => void
 }
 
 export function TaskItem({
@@ -25,6 +28,8 @@ export function TaskItem({
   onSelect,
   focusedTaskId,
   onFocus,
+  saveEdit,
+  cancelEdit,
 }: TaskItemProps) {
   const [showDetails, setShowDetails] = useState(false)
   const [isCompleting, setIsCompleting] = useState(false)
@@ -94,7 +99,8 @@ export function TaskItem({
       <div className="animate-slide-in-down">
         <EditTaskForm
           task={task}
-        // Pass real callbacks only if available from parent. Avoid no-op shims.
+          onSave={saveEdit}
+          onCancel={cancelEdit}
         />
       </div>
     )

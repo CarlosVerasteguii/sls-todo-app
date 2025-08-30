@@ -3,6 +3,7 @@
 import type React from "react"
 import { useState, useEffect, useRef } from "react"
 import type { Task, Priority } from "@/types/task"
+import { PRIORITY_COLORS } from "@/lib/task-utils"
 
 interface EditTaskFormProps {
   task: Task
@@ -59,12 +60,7 @@ export function EditTaskForm({ task, onSave, onCancel }: EditTaskFormProps) {
     }
   }
 
-  const priorityColors = {
-    P0: "bg-red-500",
-    P1: "bg-orange-500",
-    P2: "bg-yellow-500",
-    P3: "bg-green-500",
-  }
+  // Use shared PRIORITY_COLORS for visual consistency across components
 
   return (
     <div className="todo-item-edit">
@@ -106,20 +102,22 @@ export function EditTaskForm({ task, onSave, onCancel }: EditTaskFormProps) {
             />
 
             <div className="flex gap-2 flex-wrap">
-              <div className="flex gap-1">
-                {(["P0", "P1", "P2", "P3"] as Priority[]).map((p) => (
-                  <button
-                    key={p}
-                    onClick={() => setPriority(p)}
-                    className={`w-8 h-8 rounded-full text-xs font-bold transition-all ${priority === p
-                      ? `${priorityColors[p]} text-white ring-2 ring-white`
-                      : `${priorityColors[p]} opacity-50 hover:opacity-75`
-                      }`}
-                  >
-                    {p.slice(1)}
-                  </button>
-                ))}
-              </div>
+            <div className="flex gap-1">
+              {(["P0", "P1", "P2", "P3"] as Priority[]).map((p) => (
+                <button
+                  key={p}
+                  onClick={() => setPriority(p)}
+                  className={`w-8 h-8 rounded-full text-xs font-bold transition-all ${priority === p
+                    ? "text-white ring-2 ring-white"
+                    : "opacity-50 hover:opacity-75"
+                    }`}
+                  style={{ backgroundColor: PRIORITY_COLORS[p] }}
+                  title={`Priority ${p}`}
+                >
+                  {p.slice(1)}
+                </button>
+              ))}
+            </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">

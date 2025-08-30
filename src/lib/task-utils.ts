@@ -2,7 +2,7 @@ import type { Todo, Task, TaskFilters, UndoAction } from "@/types/task"
 
 export const PRIORITY_COLORS = {
   P0: "#E73725", // SLS red - urgent
-  P1: "#E83A2A", // SLS red-2 - high
+  P1: "#F97316", // orange-500 - high
   P2: "#FFA726", // amber - medium
   P3: "#66BB6A", // green - low
 } as const

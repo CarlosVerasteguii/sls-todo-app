@@ -573,6 +573,8 @@ export default function TodoApp() {
                 onSelect={handleSelect}
                 focusedTaskId={focusedTaskId}
                 onFocus={handleFocusTask}
+                saveEdit={saveEdit}
+                cancelEdit={cancelEdit}
               />
             </div>
 
@@ -645,6 +647,8 @@ export default function TodoApp() {
                                   onSelect={() => { }}
                                   focusedTaskId={focusedTaskId}
                                   onFocus={handleFocusTask}
+                                  saveEdit={saveEdit}
+                                  cancelEdit={cancelEdit}
                                 />
                               </div>
                               {task.completedAt && (

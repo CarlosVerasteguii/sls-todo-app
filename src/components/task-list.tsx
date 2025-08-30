@@ -11,6 +11,8 @@ interface TaskListProps {
   onSelect: (taskId: string, multiSelect?: boolean) => void
   focusedTaskId: string | null; // New prop
   onFocus: (taskId: string) => void; // New prop
+  saveEdit: (id: string, updates: Partial<Task>) => void;
+  cancelEdit: () => void;
 }
 
 export function TaskList({
@@ -21,6 +23,8 @@ export function TaskList({
   onSelect,
   focusedTaskId,
   onFocus,
+  saveEdit,
+  cancelEdit,
 }: TaskListProps) {
   if (tasks.length === 0) {
     return (
@@ -42,6 +46,8 @@ export function TaskList({
           onSelect={onSelect}
           focusedTaskId={focusedTaskId}
           onFocus={onFocus}
+          saveEdit={saveEdit}
+          cancelEdit={cancelEdit}
         />
       ))}
     </div>
