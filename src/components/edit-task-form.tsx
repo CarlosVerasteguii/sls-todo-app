@@ -17,7 +17,6 @@ export function EditTaskForm({ task, onSave, onCancel }: EditTaskFormProps) {
   const [priority, setPriority] = useState<Priority>(task.priority)
   const [project, setProject] = useState(task.project || "")
   const [tags, setTags] = useState(task.tags.join(", "))
-  const [dueAt, setDueAt] = useState(task.dueAt ? new Date(task.dueAt).toISOString().slice(0, 16) : "")
   const [isExpanded, setIsExpanded] = useState(false)
 
   const inputRef = useRef<HTMLInputElement>(null)
@@ -28,8 +27,8 @@ export function EditTaskForm({ task, onSave, onCancel }: EditTaskFormProps) {
       inputRef.current.select()
     }
 
-    // Auto-expand if task has description, project, or due date
-    if (task.description || task.project || task.dueAt || task.tags.length > 0) {
+    // Auto-expand if task has description, project, or tags
+    if (task.description || task.project || task.tags.length > 0) {
       setIsExpanded(true)
     }
   }, [task])
@@ -44,7 +43,6 @@ export function EditTaskForm({ task, onSave, onCancel }: EditTaskFormProps) {
         .split(",")
         .map((tag) => tag.trim())
         .filter(Boolean),
-      dueAt: dueAt ? new Date(dueAt).toISOString() : undefined,
       updatedAt: new Date().toISOString(),
     }
 
@@ -137,12 +135,7 @@ export function EditTaskForm({ task, onSave, onCancel }: EditTaskFormProps) {
               />
             </div>
 
-            <input
-              type="datetime-local"
-              value={dueAt}
-              onChange={(e) => setDueAt(e.target.value)}
-              className="todo-input"
-            />
+            {/* Due date removed per PRD scope alignment */}
           </div>
         )}
 

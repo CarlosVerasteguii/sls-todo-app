@@ -22,7 +22,6 @@ export type Task = Todo & {
   // UI/derived fields (not persisted 1:1)
   status?: "active" | "snoozed" | "completed";
   completedAt?: string | null;
-  dueAt?: string | null;
   snoozedUntil?: string | null;
   userIdentifier?: string;
   updatedAt?: string; // alias for updated_at used in UI helpers

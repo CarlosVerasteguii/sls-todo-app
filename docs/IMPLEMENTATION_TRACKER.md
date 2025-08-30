@@ -295,6 +295,33 @@
 - **Auditoría de Código:** Completada.
 - **Pruebas Manuales (Confirmación):** El comportamiento de `E`, `P`, `Delete`, `CTRL+A`, `CTRL+Z` y `ESC` coincide con la implementación esperada.
 
+---
+
+## Refactor: Remove 'dueAt' UI to Align with PRD Scope
+
+**When (America/Monterrey):** 2025-08-30
+**Status:** ✅ Done
+
+**Changed Files (frontend only):**
+- `src/components/edit-task-form.tsx`
+- `src/types/task.ts`
+- `src/hooks/use-tasks.ts` (review only; no direct code changes required)
+
+**What & Why:**
+- El PRD marca la funcionalidad de "fecha de vencimiento" como Fuera de Alcance (Out of Scope) para v1.0. Para alinear el frontend con el PRD y evitar expectativas de persistencia no soportadas por la API/DB, se removió el campo de fecha del formulario de edición y la propiedad del tipo `Task`.
+  - `edit-task-form.tsx`: se eliminó el estado `dueAt`, el control `<input type="datetime-local">` y el envío de `dueAt` en `updates`.
+  - `types/task.ts`: se removió la propiedad opcional `dueAt` del tipo `Task`.
+  - `use-tasks.ts`: auditado; no tenía referencias directas a `dueAt` (solo propagaba `updates/options`). Sin cambios.
+
+**Notes:**
+- El backend (`/api/todos` POST/PATCH) y la base de datos no manejan `dueAt` en v1.0; no se realizaron cambios allí por alineación de alcance.
+- Otras vistas pueden seguir mostrando elementos visuales relacionados a `dueAt` (por ejemplo, contadores/indicadores). Esos ajustes se pueden abordar en una fase posterior si se desea remover toda referencia visual.
+
+**Verification:**
+- El formulario de edición ya no muestra el selector de fecha/hora.
+- Guardar cambios no incluye `dueAt` en `updates`.
+- TypeScript no marca referencias a `dueAt` dentro del formulario o tipos del formulario.
+
 ## Fix: Wire Edit Form Props (saveEdit/cancelEdit) End-to-End
 
 **When (America/Monterrey):** 2025-08-30
