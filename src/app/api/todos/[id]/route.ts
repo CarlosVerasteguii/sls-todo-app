@@ -19,7 +19,7 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   const supabase = await createClient();
-  const { id } = await params;
+  const { id } = params;
 
   try {
     const body = await request.json();
@@ -82,7 +82,7 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   const supabase = await createClient();
-  const { id } = await params;
+  const { id } = params;
 
   const { data, error } = await supabase
     .from('todos')

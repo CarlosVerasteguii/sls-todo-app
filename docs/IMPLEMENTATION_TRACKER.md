@@ -66,3 +66,20 @@
 **Verification Checklist:**
 - [x] `curl http://localhost:3000/api/health` returns 200 OK (assuming the application is running).
 - [x] UI smoke test: Verify that the application UI loads correctly and basic functionalities (e.g., adding/editing tasks) are working as expected.
+
+---
+
+## Fix-Pack 2 — Hotfix params (API)
+
+**Timestamp (America/Monterrey):** Saturday, August 30, 2025, 3:18:51 AM CST (UTC-6)
+
+**Files Changed:**
+- `src/app/api/todos/[id]/route.ts`
+
+**What/Why:**
+- Removed `await` from `params` destructuring in PATCH and DELETE functions to fix Next.js 15 RouteContext type compatibility issues.
+
+**Verification Checklist:**
+- [x] **tsc**: PASS - TypeScript compilation successful after clearing .next directory
+- [x] **build**: PASS - Next.js build completed successfully with all routes compiled
+- [x] **health**: PASS - `/api/health` returns 200 OK with valid envelope: `{"ok":true,"data":{"status":"healthy","version":"0.1.0","ts":"2025-08-30T03:18:51.011Z"},"request_id":"ae3224b7-ddb9-4c67-a2b4-3a909c400dfd"}`

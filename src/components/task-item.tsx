@@ -32,10 +32,15 @@ export function TaskItem({
   onDeleteTask,
   onCyclePriority,
 }: TaskItemProps) {
+  const [showDetails, setShowDetails] = useState(false)
+  const [isCompleting, setIsCompleting] = useState(false)
   const handleToggleComplete = (e: React.MouseEvent) => {
     e.stopPropagation()
     onToggleComplete(task.id)
   }
+
+  const isSnoozed = task.status === "snoozed"
+  const isOverdue = Boolean(task.dueAt) && task.status === "active" && new Date(task.dueAt!) < new Date()
 
   const handleCardClick = (e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest('button, input, [role="button"]')) {
@@ -46,7 +51,7 @@ export function TaskItem({
 
   const handleDoubleClick = (e: React.MouseEvent) => {
     e.preventDefault()
-    if (!isComplete && !isEditing) {
+    if (!task.completed && !isEditing) {
       onStartEdit(task.id)
     }
   }
@@ -64,14 +69,14 @@ export function TaskItem({
         break
       case "e":
       case "E":
-        if (!isComplete && !isEditing) {
+        if (!task.completed && !isEditing) {
           e.preventDefault()
           onStartEdit(task.id)
         }
         break
       case "p":
       case "P":
-        if (!isComplete) {
+        if (!task.completed) {
           e.preventDefault()
           onCyclePriority(task.id)
         }
@@ -89,31 +94,33 @@ export function TaskItem({
   if (isEditing) {
     return (
       <div className="animate-slide-in-down">
-        <EditTaskForm task={task} onSave={onSaveEdit} onCancel={onCancelEdit} />
+        <EditTaskForm
+          task={task}
+          onSave={(taskId, updates) => onSaveEdit(taskId, updates.title ?? task.title)}
+          onCancel={onCancelEdit}
+        />
       </div>
     )
   }
 
   return (
     <div
-      className={`todo-item group animate-slide-in-up cursor-pointer ${isComplete ? "completed" : ""} ${
-        isSelected ? "ring-2" : ""
-      } focus-ring relative overflow-visible`}
+      className={`todo-item group animate-slide-in-up cursor-pointer ${task.completed ? "completed" : ""} ${isSelected ? "ring-2" : ""
+        } focus-ring relative overflow-visible`}
       style={{
-        ringColor: isSelected ? "var(--sls-primary)" : "transparent",
         transform: isSelected ? "translateY(-2px)" : "translateY(0)",
         boxShadow: isSelected
           ? "0 8px 24px rgba(231, 55, 37, 0.15), 0 0 0 1px rgba(231, 55, 37, 0.1)"
-          : isComplete
+          : task.completed
             ? "0 1px 4px rgba(0, 0, 0, 0.05)"
             : "0 2px 8px rgba(0, 0, 0, 0.08)",
-        borderLeft: isOverdue ? "3px solid #E73725" : "3px solid transparent",
+        borderLeft: task.dueAt && task.status === "active" && new Date(task.dueAt) < new Date() ? "3px solid #E73725" : "3px solid transparent",
         zIndex: showDetails || isSelected ? 10 : 1,
       }}
       tabIndex={0}
       role="listitem"
       aria-selected={isSelected}
-      aria-checked={isComplete}
+      aria-checked={task.completed}
       onClick={handleCardClick}
       onDoubleClick={handleDoubleClick}
       onKeyDown={handleKeyDown}
@@ -123,24 +130,23 @@ export function TaskItem({
       {/* Priority Dot */}
       <div
         className="flex-shrink-0 w-3 h-3 rounded-full"
-        style={{ backgroundColor: PRIORITY_COLORS[priority as Priority] }}
-        title={`Priority: ${PRIORITY_LABELS[priority as Priority]}`}
+        style={{ backgroundColor: PRIORITY_COLORS[task.priority as Priority] }}
+        title={`Priority: ${PRIORITY_LABELS[task.priority as Priority]}`}
       />
 
       {/* Checkbox */}
       <button
-        className={`flex-shrink-0 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all duration-200 hover:scale-110 focus-ring ${
-          isCompleting ? "animate-pulse" : ""
-        }`}
+        className={`flex-shrink-0 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all duration-200 hover:scale-110 focus-ring ${isCompleting ? "animate-pulse" : ""
+          }`}
         style={{
-          borderColor: isComplete ? "var(--sls-primary)" : "var(--sls-muted)",
-          backgroundColor: isComplete ? "var(--sls-primary)" : "transparent",
+          borderColor: task.completed ? "var(--sls-primary)" : "var(--sls-muted)",
+          backgroundColor: task.completed ? "var(--sls-primary)" : "transparent",
         }}
         onClick={handleToggleComplete}
-        aria-label={isComplete ? "Mark as incomplete" : "Mark as complete"}
+        aria-label={task.completed ? "Mark as incomplete" : "Mark as complete"}
         disabled={isCompleting}
       >
-        {isComplete && (
+        {task.completed && (
           <svg className="w-3 h-3 animate-checkmark" fill="white" viewBox="0 0 20 20">
             <path
               fillRule="evenodd"
@@ -156,13 +162,13 @@ export function TaskItem({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 min-w-0 flex-1">
             <span
-              className={`transition-all duration-200 ${isComplete ? "line-through" : ""}`}
+              className={`transition-all duration-200 ${task.completed ? "line-through" : ""}`}
               style={{
-                color: isSelected ? "var(--sls-primary)" : isComplete ? "var(--sls-muted)" : "var(--sls-text-light)",
+                color: isSelected ? "var(--sls-primary)" : task.completed ? "var(--sls-muted)" : "var(--sls-text-light)",
                 fontWeight: isSelected ? "600" : "400",
               }}
             >
-              {title}
+              {task.title}
             </span>
 
             {task.tags && task.tags.length > 0 && (
@@ -206,12 +212,12 @@ export function TaskItem({
               </span>
             )}
 
-            {isOverdue && !isComplete && (
+            {isOverdue && !task.completed && (
               <span className="px-2 py-1 text-xs rounded-full bg-red-500/20 text-red-300">Overdue</span>
             )}
 
             {/* Countdown Timer - Now prominently displayed on the right */}
-            {task.dueAt && !isComplete && (
+            {task.dueAt && !task.completed && (
               <div className="flex items-center">
                 <CountdownTimer
                   dueAt={task.dueAt}
@@ -239,19 +245,19 @@ export function TaskItem({
       </div>
 
       <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-        {!isComplete && (
+        {!task.completed && (
           <button
             className="flex-shrink-0 p-2 rounded-full hover:bg-sls-primary/20 transition-all duration-200 focus-ring"
             onClick={(e) => {
               e.stopPropagation()
               onCyclePriority(task.id)
             }}
-            aria-label={`Change priority (current: ${PRIORITY_LABELS[priority as Priority]})`}
+            aria-label={`Change priority (current: ${PRIORITY_LABELS[task.priority as Priority]})`}
             title="Cycle priority (P)"
           >
             <div
               className="w-4 h-4 rounded-full border-2"
-              style={{ borderColor: PRIORITY_COLORS[priority as Priority] }}
+              style={{ borderColor: PRIORITY_COLORS[task.priority as Priority] }}
             />
           </button>
         )}
@@ -274,7 +280,7 @@ export function TaskItem({
           </svg>
         </button>
 
-        {isSelected && !isComplete && (
+        {isSelected && !task.completed && (
           <button
             className="flex-shrink-0 p-2 rounded-full hover:bg-red-500/20 transition-all duration-200 focus-ring animate-fade-in"
             onClick={(e) => {

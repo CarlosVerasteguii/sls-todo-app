@@ -1,18 +1,9 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef } from "react"
-import type { Task, Priority, TaskFilters } from "@/types/task"
+import type { Task, Priority, TaskFilters, UndoAction } from "@/types/task"
 import { getSortedTasks, filterTasks, migrateTask } from "@/lib/task-utils"
 import { ToastNotification } from "@/components/notification-toast"
-
-// Define UndoAction and UndoManager types/classes here
-export type UndoAction =
-  | { type: "create"; taskId: string; timestamp: number }
-  | { type: "update"; taskId: string; previousState: Task; timestamp: number }
-  | { type: "delete"; taskId: string; previousState: Task; timestamp: number }
-  | { type: "toggle"; taskId: string; previousState: Task; timestamp: number } // New type for toggle
-  | { type: "bulk_delete"; taskIds: string[]; previousState: Task[]; timestamp: number }
-  | { type: "bulk"; taskIds: string[]; previousState: Task[]; timestamp: number };
 
 class UndoManager {
   private history: UndoAction[] = [];
@@ -46,6 +37,7 @@ export function useTasks({ userIdentifier, addNotification }: UseTasksOptions) {
   const [filters, setFilters] = useState<TaskFilters>({ status: ["active", "snoozed"] })
   const [undoManager] = useState(() => new UndoManager())
   const [isIdentifierLocked, setIsIdentifierLocked] = useState<boolean>(false)
+  const [lastUndoAction, setLastUndoAction] = useState<UndoAction | null>(null)
 
   // New states for API calls
   const [loading, setLoading] = useState<boolean>(false)
@@ -773,7 +765,7 @@ export function useTasks({ userIdentifier, addNotification }: UseTasksOptions) {
     bulkUpdate,
     bulkDelete,
     undo,
-    canUndo: lastUndoAction && Date.now() - lastUndoAction.timestamp < 5000,
+    canUndo: Boolean(lastUndoAction) && Date.now() - lastUndoAction!.timestamp < 5000,
     lastUndoAction,
     isIdentifierLocked,
     setIsIdentifierLocked,

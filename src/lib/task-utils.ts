@@ -25,7 +25,7 @@ export function getSortedTasks(tasks: Task[], now: Date = new Date()): Task[] {
     // Then by due date
     t.dueAt ? new Date(t.dueAt).getTime() : Number.MAX_SAFE_INTEGER,
     // Finally by updated date (most recent first)
-    -new Date(t.updatedAt).getTime(),
+    -(t.updatedAt ? new Date(t.updatedAt).getTime() : new Date().getTime()),
   ]
 
   return tasks.sort((a, b) => {
@@ -44,7 +44,7 @@ export function getSortedTasks(tasks: Task[], now: Date = new Date()): Task[] {
 export function filterTasks(tasks: Task[], filters: TaskFilters, now: Date = new Date()): Task[] {
   return tasks.filter((task) => {
     // Status filter
-    if (filters.status && !filters.status.includes(task.status)) return false
+    if (filters.status && !filters.status.includes(task.status ?? "active")) return false
 
     // Priority filter
     if (filters.priority && !filters.priority.includes(task.priority)) return false
