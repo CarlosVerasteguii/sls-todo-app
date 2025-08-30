@@ -23,7 +23,14 @@ export async function PATCH(
 
   try {
     const body = await request.json();
-    const validatedData = todoUpdateSchema.parse(body);
+    const { identifier, ...updatePayload } = body; // Extraer identifier y el resto de los datos
+
+    if (!identifier) {
+      return createErrorResponse({ code: 'BAD_REQUEST', message: 'Identifier is required in the request body' }, 400);
+    }
+    const identifier_norm = (identifier as string).trim().toLowerCase();
+    
+    const validatedData = todoUpdateSchema.parse(updatePayload);
 
     if (Object.keys(validatedData).length === 0) {
       return createErrorResponse(
@@ -32,33 +39,27 @@ export async function PATCH(
       );
     }
 
-    const updatePayload: { [key: string]: any } = {};
-    for (const key in validatedData) {
-      if (validatedData.hasOwnProperty(key)) {
-        if (key === 'tags' && validatedData.tags !== undefined) {
-          updatePayload.tags = validatedData.tags; // Persist tags directly as array
-        } else {
-          updatePayload[key] = (validatedData as any)[key];
-        }
-      }
-    }
-
     const { data, error } = await supabase
       .from('todos')
-      .update(updatePayload)
+      .update(validatedData)
       .eq('id', id)
+      .eq('identifier_norm', identifier_norm) // <-- CLÁUSULA DE SEGURIDAD
       .select()
       .single();
 
     if (error) {
       console.error('Error updating todo:', error);
       if (error.code === 'PGRST116') { // No rows found
-        return createErrorResponse({ code: 'NOT_FOUND', message: 'Todo not found' }, 404);
+        return createErrorResponse({ code: 'NOT_FOUND', message: 'Task not found or permission denied' }, 404);
       }
       return createErrorResponse(
         { code: 'DB_ERROR', message: error.message },
         500
       );
+    }
+    
+    if (!data && !error) {
+       return createErrorResponse({ code: 'NOT_FOUND', message: 'Task not found or permission denied' }, 404);
     }
 
     return createSuccessResponse<Todo>(data, 200);
@@ -84,23 +85,41 @@ export async function DELETE(
   const supabase = await createClient();
   const { id } = params;
 
-  const { data, error } = await supabase
-    .from('todos')
-    .delete()
-    .eq('id', id)
-    .select('id');
+  try {
+    const body = await request.json();
+    const { identifier } = body;
 
-  if (error) {
-    console.error('Error deleting todo:', error);
+    if (!identifier) {
+      return createErrorResponse({ code: 'BAD_REQUEST', message: 'Identifier is required in the request body' }, 400);
+    }
+    const identifier_norm = (identifier as string).trim().toLowerCase();
+
+    const { data, error } = await supabase
+      .from('todos')
+      .delete()
+      .eq('id', id)
+      .eq('identifier_norm', identifier_norm) // <-- CLÁUSULA DE SEGURIDAD
+      .select('id')
+      .single();
+
+    if (error) {
+      console.error('Error deleting todo:', error);
+      return createErrorResponse(
+        { code: 'DB_ERROR', message: error.message },
+        500
+      );
+    }
+
+    if (!data && !error) {
+      return createErrorResponse({ code: 'NOT_FOUND', message: 'Task not found or permission denied' }, 404);
+    }
+
+    return createSuccessResponse({ id: data.id }, 200);
+  } catch (error) {
+    console.error('Unexpected error in DELETE /api/todos/:id:', error);
     return createErrorResponse(
-      { code: 'DB_ERROR', message: error.message },
+      { code: 'INTERNAL_SERVER_ERROR', message: 'An unexpected error occurred' },
       500
     );
   }
-
-  if (!data || data.length === 0) {
-    return createErrorResponse({ code: 'NOT_FOUND', message: 'Todo not found' }, 404);
-  }
-
-  return createSuccessResponse({ id: data[0].id }, 200);
 }

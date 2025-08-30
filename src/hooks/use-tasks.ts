@@ -362,11 +362,12 @@ export function useTasks({ userIdentifier, addNotification }: UseTasksOptions) {
       setRequestId(null);
 
       try {
-        const response = await fetch(`/api/todos/${id}?identifier=${encodeURIComponent(userIdentifier)}`, {
+        const response = await fetch(`/api/todos/${id}`, {
           method: "DELETE",
           headers: {
             "Content-Type": "application/json",
           },
+          body: JSON.stringify({ identifier: userIdentifier }),
         });
 
         const data = await response.json();
