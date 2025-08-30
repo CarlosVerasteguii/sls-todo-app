@@ -13,11 +13,8 @@ interface TaskItemProps {
   isEditing: boolean
   onToggleComplete: (taskId: string) => void
   onSelect: (taskId: string, multiSelect?: boolean) => void
-  onStartEdit: (taskId: string) => void
-  onSaveEdit: (taskId: string, newTitle: string) => void
-  onCancelEdit: () => void
-  onDeleteTask: (taskId: string) => void
-  onCyclePriority: (taskId: string) => void
+  focusedTaskId: string | null; // New prop
+  onFocus: (taskId: string) => void; // New prop
 }
 
 export function TaskItem({
@@ -26,11 +23,8 @@ export function TaskItem({
   isEditing,
   onToggleComplete,
   onSelect,
-  onStartEdit,
-  onSaveEdit,
-  onCancelEdit,
-  onDeleteTask,
-  onCyclePriority,
+  focusedTaskId,
+  onFocus,
 }: TaskItemProps) {
   const [showDetails, setShowDetails] = useState(false)
   const [isCompleting, setIsCompleting] = useState(false)
@@ -51,44 +45,48 @@ export function TaskItem({
 
   const handleDoubleClick = (e: React.MouseEvent) => {
     e.preventDefault()
-    if (!task.completed && !isEditing) {
-      onStartEdit(task.id)
-    }
+    // onStartEdit will be called from page.tsx via global keydown
+    // if (!task.completed && !isEditing) {
+    //   onStartEdit(task.id)
+    // }
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    switch (e.key) {
-      case "Enter":
-      case " ":
-        e.preventDefault()
-        if (e.shiftKey) {
-          onSelect(task.id, true)
-        } else {
-          onToggleComplete(task.id)
-        }
-        break
-      case "e":
-      case "E":
-        if (!task.completed && !isEditing) {
-          e.preventDefault()
-          onStartEdit(task.id)
-        }
-        break
-      case "p":
-      case "P":
-        if (!task.completed) {
-          e.preventDefault()
-          onCyclePriority(task.id)
-        }
-        break
-      case "Delete":
-      case "Backspace":
-        if (isSelected) {
-          e.preventDefault()
-          onDeleteTask(task.id)
-        }
-        break
-    }
+    // Keyboard shortcuts will be handled by global listener in page.tsx
+    // This handler will be removed or simplified
+    // For now, remove the specific key handling
+    // switch (e.key) {
+    //   case "Enter":
+    //   case " ":
+    //     e.preventDefault()
+    //     if (e.shiftKey) {
+    //       onSelect(task.id, true)
+    //     } else {
+    //       onToggleComplete(task.id)
+    //     }
+    //     break
+    //   case "e":
+    //   case "E":
+    //     if (!task.completed && !isEditing) {
+    //       e.preventDefault()
+    //       onStartEdit(task.id)
+    //     }
+    //     break
+    //   case "p":
+    //   case "P":
+    //     if (!task.completed) {
+    //       e.preventDefault()
+    //       onCyclePriority(task.id)
+    //     }
+    //     break
+    //   case "Delete":
+    //   case "Backspace":
+    //     if (isSelected) {
+    //       e.preventDefault()
+    //       onDeleteTask(task.id)
+    //     }
+    //     break
+    // }
   }
 
   if (isEditing) {
@@ -96,8 +94,7 @@ export function TaskItem({
       <div className="animate-slide-in-down">
         <EditTaskForm
           task={task}
-          onSave={(taskId, updates) => onSaveEdit(taskId, updates.title ?? task.title)}
-          onCancel={onCancelEdit}
+        // Pass real callbacks only if available from parent. Avoid no-op shims.
         />
       </div>
     )
@@ -117,13 +114,14 @@ export function TaskItem({
         borderLeft: task.dueAt && task.status === "active" && new Date(task.dueAt) < new Date() ? "3px solid #E73725" : "3px solid transparent",
         zIndex: showDetails || isSelected ? 10 : 1,
       }}
-      tabIndex={0}
+      tabIndex={task.id === focusedTaskId ? 0 : -1} // Updated tabIndex
       role="listitem"
       aria-selected={isSelected}
       aria-checked={task.completed}
       onClick={handleCardClick}
       onDoubleClick={handleDoubleClick}
-      onKeyDown={handleKeyDown}
+      onKeyDown={handleKeyDown} // Keep onKeyDown for now, but it will be empty or simplified
+      onFocus={() => onFocus(task.id)} // New onFocus handler
       onMouseEnter={() => setShowDetails(true)}
       onMouseLeave={() => setShowDetails(false)}
     >
@@ -245,64 +243,9 @@ export function TaskItem({
       </div>
 
       <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-        {!task.completed && (
-          <button
-            className="flex-shrink-0 p-2 rounded-full hover:bg-sls-primary/20 transition-all duration-200 focus-ring"
-            onClick={(e) => {
-              e.stopPropagation()
-              onCyclePriority(task.id)
-            }}
-            aria-label={`Change priority (current: ${PRIORITY_LABELS[task.priority as Priority]})`}
-            title="Cycle priority (P)"
-          >
-            <div
-              className="w-4 h-4 rounded-full border-2"
-              style={{ borderColor: PRIORITY_COLORS[task.priority as Priority] }}
-            />
-          </button>
-        )}
-
-        <button
-          className="flex-shrink-0 p-2 rounded-full hover:bg-blue-500/20 transition-all duration-200 focus-ring"
-          onClick={(e) => {
-            e.stopPropagation()
-            onStartEdit(task.id)
-          }}
-          aria-label="Edit task"
-          title="Edit task (E)"
-        >
-          <svg
-            className="w-4 h-4 text-white hover:text-blue-300 transition-colors"
-            fill="currentColor"
-            viewBox="0 0 20 20"
-          >
-            <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
-          </svg>
-        </button>
-
-        {isSelected && !task.completed && (
-          <button
-            className="flex-shrink-0 p-2 rounded-full hover:bg-red-500/20 transition-all duration-200 focus-ring animate-fade-in"
-            onClick={(e) => {
-              e.stopPropagation()
-              onDeleteTask(task.id)
-            }}
-            aria-label="Delete task"
-            title="Delete task (Del)"
-          >
-            <svg
-              className="w-4 h-4 text-red-400 hover:text-red-300 transition-colors"
-              fill="currentColor"
-              viewBox="0 0 20 20"
-            >
-              <path
-                fillRule="evenodd"
-                d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 011.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414z"
-                clipRule="evenodd"
-              />
-            </svg>
-          </button>
-        )}
+        {/* Removed priority cycle button */}
+        {/* Removed edit button */}
+        {/* Removed delete button */}
       </div>
 
       <button

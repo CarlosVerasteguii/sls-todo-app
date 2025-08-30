@@ -5,9 +5,11 @@ import { TaskList } from "@/components/task-list"
 import { AddTaskForm } from "@/components/add-task-form"
 import { NotificationToast, type ToastNotification } from "@/components/notification-toast"
 import { useTasks } from "@/hooks/use-tasks"
+import type { Task, Priority } from '@/types/task';
 
 export default function TodoApp() {
   const [userIdentifier, setUserIdentifier] = useState<string>("")
+  const [focusedTaskId, setFocusedTaskId] = useState<string | null>(null); // New state for focused task
 
   const [notifications, setNotifications] = useState<ToastNotification[]>([])
 
@@ -34,7 +36,7 @@ export default function TodoApp() {
     deleteTask,
     toggleTaskComplete,
     snoozeTask,
-    cyclePriority,
+    togglePriority,
     bulkUpdate,
     bulkDelete,
     undo,
@@ -43,77 +45,130 @@ export default function TodoApp() {
     isIdentifierLocked,
     setIsIdentifierLocked,
     loading, // Use loading from useTasks
+    isMutating, // ADDED
     error, // Use error from useTasks
     requestId, // Use requestId from useTasks
+    beginEdit,
+    saveEdit,
+    cancelEdit,
   } = useTasks({ userIdentifier, addNotification }) // Pass addNotification
 
   // Removed local loading state and its useEffect
 
   const [completedCollapsed, setCompletedCollapsed] = useState(true)
 
+  const handleFocusTask = useCallback((taskId: string) => {
+    setFocusedTaskId(taskId);
+  }, []);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't handle shortcuts when editing
+      if (!isIdentifierLocked) return; // Only active when identifier is locked
+
+      // Ignore shortcuts if: default prevented, editable element, or IME composition
+      const target = e.target as HTMLElement;
+      const isEditable = target.isContentEditable ||
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.getAttribute('role') === 'textbox';
+
+      if (e.defaultPrevented || isEditable || e.isComposing) {
+        return;
+      }
+
+      // Handle Enter and Escape within EditTaskForm directly
       if (editingTaskId) {
-        if (e.key === "Escape") {
-          setEditingTaskId(null)
+        // If in editing mode, only allow Enter and Escape to be handled by the form
+        // Other keys should be ignored to prevent accidental shortcuts
+        if (e.key === 'Enter' || e.key === 'Escape') {
+          return; // Let the form handle these
         }
-        return
+        e.preventDefault(); // Prevent other keys from triggering browser defaults
+        return;
       }
 
       switch (e.key) {
         case "Escape":
-          setSelectedTaskIds(new Set())
-          break
+          setSelectedTaskIds(new Set());
+          setFocusedTaskId(null); // Clear focused task on Escape
+          break;
+        case "e":
+        case "E":
+          if (focusedTaskId && !editingTaskId) {
+            e.preventDefault();
+            beginEdit(focusedTaskId);
+          } else if (focusedTaskId === editingTaskId) {
+            e.preventDefault();
+            cancelEdit();
+          }
+          break;
+        case "p":
+        case "P":
+          if (focusedTaskId && !editingTaskId) {
+            e.preventDefault();
+            togglePriority(focusedTaskId);
+          }
+          break;
         case "Delete":
         case "Backspace":
-          if (selectedTaskIds.size > 0) {
-            e.preventDefault()
-            bulkDelete(Array.from(selectedTaskIds))
-            setSelectedTaskIds(new Set())
-            addNotification({
-              type: "success",
-              title: "Tasks deleted",
-              message: `${selectedTaskIds.size} task${selectedTaskIds.size > 1 ? "s" : ""} deleted successfully`,
-            })
+          if (focusedTaskId && !editingTaskId) {
+            e.preventDefault();
+            deleteTask(focusedTaskId);
+            setFocusedTaskId(null); // Clear focused task after deletion
           }
-          break
+          break;
         case "a":
         case "A":
           if (e.ctrlKey || e.metaKey) {
-            e.preventDefault()
-            const visibleTaskIds = new Set(tasks.filter((t) => t.status === "active").map((t) => t.id))
-            setSelectedTaskIds(visibleTaskIds)
+            e.preventDefault();
+            const visibleTaskIds = new Set(
+              tasks.filter((t: Task) => t.status === "active").map((t: Task) => t.id)
+            );
+            setSelectedTaskIds(visibleTaskIds);
           }
-          break
+          break;
         case "z":
         case "Z":
           if ((e.ctrlKey || e.metaKey) && canUndo) {
-            e.preventDefault()
-            undo()
+            e.preventDefault();
+            undo();
             addNotification({
               type: "info",
               title: "Action undone",
               message: "Previous action has been restored",
-            })
+            });
           }
-          break
+          break;
       }
+    };
+
+    if (isIdentifierLocked) {
+      document.addEventListener("keydown", handleKeyDown);
+    } else {
+      document.removeEventListener("keydown", handleKeyDown);
+      setFocusedTaskId(null); // Clear focused task when unlocked
+      setEditingTaskId(null); // Clear editing task when unlocked
     }
 
-    document.addEventListener("keydown", handleKeyDown)
-    return () => document.removeEventListener("keydown", handleKeyDown)
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+    };
   }, [
-    selectedTaskIds,
+    isIdentifierLocked,
+    focusedTaskId,
     editingTaskId,
     tasks,
     canUndo,
     undo,
-    bulkDelete,
+    deleteTask,
+    togglePriority,
+    beginEdit,
+    cancelEdit,
     setSelectedTaskIds,
+    setFocusedTaskId,
     setEditingTaskId,
     addNotification,
-  ])
+  ]);
 
   useEffect(() => {
     const cleanupCompletedTasks = () => {
@@ -198,8 +253,8 @@ export default function TodoApp() {
   }, [selectedTaskIds, bulkUpdate, setSelectedTaskIds, addNotification])
 
   const handleClearCompleted = useCallback(() => {
-    const completedTasks = allTasks.filter((t) => t.status === "completed")
-    completedTasks.forEach((task) => deleteTask(task.id))
+    const completedTasks: Task[] = allTasks.filter((t: Task) => t.status === "completed");
+    completedTasks.forEach((task: Task) => deleteTask(task.id));
     addNotification({
       type: "info",
       title: "Completed tasks cleared",
@@ -231,7 +286,7 @@ export default function TodoApp() {
     (taskId: string) => {
       const task = tasks.find((t) => t.id === taskId)
       if (task) {
-        cyclePriority(taskId)
+        togglePriority(taskId)
         const priorities = ["P0", "P1", "P2", "P3"]
         const currentIndex = priorities.indexOf(task.priority)
         const nextPriority = priorities[(currentIndex + 1) % priorities.length]
@@ -242,11 +297,11 @@ export default function TodoApp() {
         })
       }
     },
-    [tasks, cyclePriority, addNotification],
+    [tasks, togglePriority, addNotification],
   )
 
   const handleSaveEdit = useCallback(
-    (taskId: string, updates: any) => {
+    (taskId: string, updates: Partial<Pick<Task, 'title' | 'description' | 'priority' | 'tags'>>) => {
       const task = tasks.find((t) => t.id === taskId)
       if (task) {
         updateTask(taskId, updates)
@@ -276,8 +331,17 @@ export default function TodoApp() {
     [tasks, deleteTask, addNotification],
   )
 
+  interface AddTaskData {
+    title: string;
+    description?: string;
+    priority?: Priority;
+    tags?: string[];
+    project?: string;
+    dueAt?: string;
+  }
+
   const handleAddTask = useCallback(
-    (taskData: any) => {
+    (taskData: AddTaskData) => {
       createTask(taskData.title, {
         description: taskData.description,
         priority: taskData.priority,
@@ -285,20 +349,16 @@ export default function TodoApp() {
         project: taskData.project,
         dueAt: taskData.dueAt,
       })
-      addNotification({
-        type: "success",
-        title: "Task created",
-        message: `"${taskData.title}" has been added to your list`,
-      })
+
     },
     [createTask, addNotification],
   )
 
-  const activeTasks = tasks.filter((t) => t.status === "active")
-  const completedTasks = allTasks.filter((t) => t.status === "completed")
-  const snoozedTasks = tasks.filter((t) => t.status === "snoozed")
+  const activeTasks: Task[] = tasks.filter((t: Task) => t.status === "active")
+  const completedTasks: Task[] = allTasks.filter((t: Task) => t.status === "completed")
+  const snoozedTasks: Task[] = tasks.filter((t: Task) => t.status === "snoozed")
 
-  if (loading) {
+  if (loading && !isMutating) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "var(--sls-bg-dark)" }}>
         <div className="text-center animate-fade-in">
@@ -489,11 +549,8 @@ export default function TodoApp() {
                 editingTaskId={editingTaskId}
                 onToggleComplete={handleToggleComplete}
                 onSelect={handleSelect}
-                onStartEdit={setEditingTaskId}
-                onSaveEdit={handleSaveEdit}
-                onCancelEdit={() => { }}
-                onDeleteTask={handleDeleteTask}
-                onCyclePriority={() => { }}
+                focusedTaskId={focusedTaskId}
+                onFocus={handleFocusTask}
               />
             </div>
 
@@ -555,7 +612,7 @@ export default function TodoApp() {
                           </div>
                         </div>
                         <div className="space-y-2">
-                          {completedTasks.map((task) => (
+                          {completedTasks.map((task: Task) => (
                             <div key={task.id} className="flex items-center justify-between p-3 bg-black/20 rounded-lg">
                               <div className="flex-1">
                                 <TaskList
@@ -564,11 +621,8 @@ export default function TodoApp() {
                                   editingTaskId={null}
                                   onToggleComplete={handleToggleComplete}
                                   onSelect={() => { }}
-                                  onStartEdit={() => { }}
-                                  onSaveEdit={() => { }}
-                                  onCancelEdit={() => { }}
-                                  onDeleteTask={handleDeleteTask}
-                                  onCyclePriority={() => { }}
+                                  focusedTaskId={focusedTaskId}
+                                  onFocus={handleFocusTask}
                                 />
                               </div>
                               {task.completedAt && (

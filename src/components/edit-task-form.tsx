@@ -6,8 +6,8 @@ import type { Task, Priority } from "@/types/task"
 
 interface EditTaskFormProps {
   task: Task
-  onSave: (taskId: string, updates: Partial<Task>) => void
-  onCancel: () => void
+  onSave?: (taskId: string, updates: Partial<Task>) => void
+  onCancel?: () => void
 }
 
 export function EditTaskForm({ task, onSave, onCancel }: EditTaskFormProps) {
@@ -47,7 +47,7 @@ export function EditTaskForm({ task, onSave, onCancel }: EditTaskFormProps) {
       updatedAt: new Date().toISOString(),
     }
 
-    onSave(task.id, updates)
+    if (onSave) onSave(task.id, updates)
   }
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -55,7 +55,7 @@ export function EditTaskForm({ task, onSave, onCancel }: EditTaskFormProps) {
       e.preventDefault()
       handleSave()
     } else if (e.key === "Escape") {
-      onCancel()
+      onCancel && onCancel()
     }
   }
 
@@ -111,11 +111,10 @@ export function EditTaskForm({ task, onSave, onCancel }: EditTaskFormProps) {
                   <button
                     key={p}
                     onClick={() => setPriority(p)}
-                    className={`w-8 h-8 rounded-full text-xs font-bold transition-all ${
-                      priority === p
-                        ? `${priorityColors[p]} text-white ring-2 ring-white`
-                        : `${priorityColors[p]} opacity-50 hover:opacity-75`
-                    }`}
+                    className={`w-8 h-8 rounded-full text-xs font-bold transition-all ${priority === p
+                      ? `${priorityColors[p]} text-white ring-2 ring-white`
+                      : `${priorityColors[p]} opacity-50 hover:opacity-75`
+                      }`}
                   >
                     {p.slice(1)}
                   </button>

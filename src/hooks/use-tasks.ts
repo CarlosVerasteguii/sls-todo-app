@@ -41,6 +41,7 @@ export function useTasks({ userIdentifier, addNotification }: UseTasksOptions) {
 
   // New states for API calls
   const [loading, setLoading] = useState<boolean>(false)
+  const [isMutating, setIsMutating] = useState<boolean>(false) // ADDED
   const [error, setError] = useState<string | null>(null)
   const [requestId, setRequestId] = useState<string | null>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
@@ -53,10 +54,10 @@ export function useTasks({ userIdentifier, addNotification }: UseTasksOptions) {
           title: "Action Blocked",
           message: "Please lock an identifier before creating tasks.",
         });
-        return null; // Return null on early exit
+        return { ok: false, error: "Identifier not locked." }; // Return error object
       }
 
-      setLoading(true); // Use the main loading state for now
+      setIsMutating(true); // CHANGED
       setError(null);
       setRequestId(null);
 
@@ -93,7 +94,7 @@ export function useTasks({ userIdentifier, addNotification }: UseTasksOptions) {
             taskId: newTaskFromServer.id,
             timestamp: Date.now(),
           });
-          return newTaskFromServer;
+          return { ok: true, id: newTaskFromServer.id, request_id: data.request_id };
         } else {
           setError(data.error?.message || "An unknown error occurred");
           setRequestId(data.request_id || null);
@@ -103,7 +104,7 @@ export function useTasks({ userIdentifier, addNotification }: UseTasksOptions) {
             message: data.error?.message || "Failed to create task.",
           });
           console.warn("API Error (createTask):", { code: data.error?.code, request_id: data.request_id });
-          return null;
+          return { ok: false, error: data.error?.message || "Failed to create task.", request_id: data.request_id };
         }
       } catch (err: any) {
         setError(err.message || "Failed to create task");
@@ -113,12 +114,12 @@ export function useTasks({ userIdentifier, addNotification }: UseTasksOptions) {
           message: err.message || "Failed to create task.",
         });
         console.error("Failed to create task:", err);
-        return null;
+        return { ok: false, error: err.message || "Failed to create task." };
       } finally {
-        setLoading(false);
+        setIsMutating(false); // CHANGED
       }
     },
-    [userIdentifier, addNotification, undoManager, setLoading, setError, setRequestId],
+    [userIdentifier, addNotification, undoManager, setIsMutating, setError, setRequestId], // CHANGED
   )
 
   const updateTask = useCallback(
@@ -132,7 +133,7 @@ export function useTasks({ userIdentifier, addNotification }: UseTasksOptions) {
         return null; // Return null on early exit
       }
 
-      setLoading(true); // Use the main loading state for now
+      setIsMutating(true); // CHANGED
       setError(null);
       setRequestId(null);
 
@@ -175,7 +176,7 @@ export function useTasks({ userIdentifier, addNotification }: UseTasksOptions) {
               timestamp: Date.now(),
             });
           }
-          return updatedTaskFromServer;
+          return { ok: true, request_id: data.request_id };
         } else {
           setError(data.error?.message || "An unknown error occurred");
           setRequestId(data.request_id || null);
@@ -185,7 +186,7 @@ export function useTasks({ userIdentifier, addNotification }: UseTasksOptions) {
             message: data.error?.message || "Failed to update task.",
           });
           console.warn("API Error (updateTask):", { code: data.error?.code, request_id: data.request_id });
-          return null;
+          return { ok: false, error: data.error?.message || "Failed to update task.", request_id: data.request_id };
         }
       } catch (err: any) {
         setError(err.message || "Failed to update task");
@@ -195,12 +196,12 @@ export function useTasks({ userIdentifier, addNotification }: UseTasksOptions) {
           message: err.message || "Failed to update task.",
         });
         console.error("Failed to update task:", err);
-        return null;
+        return { ok: false, error: err.message || "Failed to update task." };
       } finally {
-        setLoading(false);
+        setIsMutating(false); // CHANGED
       }
     },
-    [userIdentifier, addNotification, undoManager, tasks, setLoading, setError, setRequestId], // Added tasks to dependencies
+    [userIdentifier, addNotification, undoManager, tasks, setIsMutating, setError, setRequestId], // CHANGED
   )
 
   const restoreDeleted = useCallback(
@@ -215,6 +216,7 @@ export function useTasks({ userIdentifier, addNotification }: UseTasksOptions) {
       }
 
       setLoading(true);
+      setIsMutating(true);
       setError(null);
       setRequestId(null);
 
@@ -268,9 +270,10 @@ export function useTasks({ userIdentifier, addNotification }: UseTasksOptions) {
         console.error("Failed to restore task:", err);
       } finally {
         setLoading(false);
+        setIsMutating(false);
       }
     },
-    [userIdentifier, addNotification, setLoading, setError, setRequestId],
+    [userIdentifier, addNotification, setLoading, setIsMutating, setError, setRequestId],
   );
 
   const restoreToggled = useCallback(
@@ -285,6 +288,7 @@ export function useTasks({ userIdentifier, addNotification }: UseTasksOptions) {
       }
 
       setLoading(true);
+      setIsMutating(true);
       setError(null);
       setRequestId(null);
 
@@ -334,9 +338,10 @@ export function useTasks({ userIdentifier, addNotification }: UseTasksOptions) {
         console.error("Failed to revert task status:", err);
       } finally {
         setLoading(false);
+        setIsMutating(false);
       }
     },
-    [userIdentifier, addNotification, setLoading, setError, setRequestId],
+    [userIdentifier, addNotification, setLoading, setIsMutating, setError, setRequestId],
   );
 
   const deleteTask = useCallback(
@@ -357,6 +362,7 @@ export function useTasks({ userIdentifier, addNotification }: UseTasksOptions) {
       setTasks((prev) => prev.filter((t) => t.id !== id));
 
       setLoading(true);
+      setIsMutating(true);
       setError(null);
       setRequestId(null);
 
@@ -417,9 +423,10 @@ export function useTasks({ userIdentifier, addNotification }: UseTasksOptions) {
         console.error("Failed to delete task:", err);
       } finally {
         setLoading(false);
+        setIsMutating(false);
       }
     },
-    [userIdentifier, tasks, addNotification, undoManager, restoreDeleted, setLoading, setError, setRequestId],
+    [userIdentifier, tasks, addNotification, undoManager, restoreDeleted, setLoading, setIsMutating, setError, setRequestId],
   );
 
   const toggleTaskComplete = useCallback(
@@ -446,6 +453,7 @@ export function useTasks({ userIdentifier, addNotification }: UseTasksOptions) {
       );
 
       setLoading(true);
+      setIsMutating(true);
       setError(null);
       setRequestId(null);
 
@@ -520,9 +528,10 @@ export function useTasks({ userIdentifier, addNotification }: UseTasksOptions) {
         console.error("Failed to update task status:", err);
       } finally {
         setLoading(false);
+        setIsMutating(false);
       }
     },
-    [userIdentifier, tasks, addNotification, undoManager, restoreToggled, setLoading, setError, setRequestId],
+    [userIdentifier, tasks, addNotification, undoManager, restoreToggled, setLoading, setIsMutating, setError, setRequestId],
   )
 
   const snoozeTask = useCallback(
@@ -547,6 +556,46 @@ export function useTasks({ userIdentifier, addNotification }: UseTasksOptions) {
       updateTask(id, { priority: nextPriority })
     },
     [tasks, updateTask],
+  )
+
+  // Shims to reconcile API surface expected by consumers
+  // TODO(doc): Confirm editing flow contract; these wrappers delegate to local state and updateTask
+  const beginEdit = useCallback((id: string) => {
+    setEditingTaskId(id)
+  }, [])
+
+  const cancelEdit = useCallback(() => {
+    setEditingTaskId(null)
+  }, [])
+
+  const saveEdit = useCallback(
+    async (id: string, updates: Partial<Task>) => {
+      const result = await updateTask(id, updates)
+      if (result) {
+        setEditingTaskId(null)
+        return { ok: true as const, request_id: undefined }
+      }
+      return { ok: false as const, error: "Failed to save" as const }
+    },
+    [updateTask]
+  )
+
+  const togglePriority = useCallback(
+    async (id: string) => {
+      const task = tasks.find((t) => t.id === id)
+      if (!task) {
+        return { ok: false as const, error: "Task not found" as const }
+      }
+      const priorities: Priority[] = ["P0", "P1", "P2", "P3"]
+      const currentIndex = priorities.indexOf(task.priority)
+      const nextPriority = priorities[(currentIndex + 1) % priorities.length]
+      const result = await updateTask(id, { priority: nextPriority })
+      if (result) {
+        return { ok: true as const, request_id: undefined }
+      }
+      return { ok: false as const, error: "Failed to update priority" as const }
+    },
+    [tasks, updateTask]
   )
 
   const bulkUpdate = useCallback(
@@ -762,6 +811,12 @@ export function useTasks({ userIdentifier, addNotification }: UseTasksOptions) {
     toggleTaskComplete,
     snoozeTask,
     cyclePriority,
+    // Reconciled surface
+    isMutating,
+    beginEdit,
+    saveEdit,
+    cancelEdit,
+    togglePriority,
     bulkUpdate,
     bulkDelete,
     undo,

@@ -9,11 +9,8 @@ interface TaskListProps {
   editingTaskId: string | null
   onToggleComplete: (taskId: string) => void
   onSelect: (taskId: string, multiSelect?: boolean) => void
-  onStartEdit: (taskId: string) => void
-  onSaveEdit: (taskId: string, newTitle: string) => void
-  onCancelEdit: () => void
-  onDeleteTask: (taskId: string) => void
-  onCyclePriority: (taskId: string) => void
+  focusedTaskId: string | null; // New prop
+  onFocus: (taskId: string) => void; // New prop
 }
 
 export function TaskList({
@@ -22,11 +19,8 @@ export function TaskList({
   editingTaskId,
   onToggleComplete,
   onSelect,
-  onStartEdit,
-  onSaveEdit,
-  onCancelEdit,
-  onDeleteTask,
-  onCyclePriority,
+  focusedTaskId,
+  onFocus,
 }: TaskListProps) {
   if (tasks.length === 0) {
     return (
@@ -46,11 +40,8 @@ export function TaskList({
           isEditing={editingTaskId === task.id}
           onToggleComplete={onToggleComplete}
           onSelect={onSelect}
-          onStartEdit={onStartEdit}
-          onSaveEdit={onSaveEdit}
-          onCancelEdit={onCancelEdit}
-          onDeleteTask={onDeleteTask}
-          onCyclePriority={onCyclePriority}
+          focusedTaskId={focusedTaskId}
+          onFocus={onFocus}
         />
       ))}
     </div>

@@ -55,12 +55,7 @@ export function AddTaskForm({ onAddTask, disabled }: AddTaskFormProps) {
     setIsExpanded(false)
   }
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault()
-      handleSubmit(e)
-    }
-  }
+  
 
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setTitle(e.target.value)
@@ -92,7 +87,6 @@ export function AddTaskForm({ onAddTask, disabled }: AddTaskFormProps) {
               className={`todo-input w-full ${error ? "border-red-500" : ""}`}
               value={title}
               onChange={handleTitleChange}
-              onKeyPress={handleKeyPress}
               onFocus={() => setIsExpanded(true)}
             />
             {error && <p className="text-red-400 text-sm mt-1 animate-fade-in">{error}</p>}
