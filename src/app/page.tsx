@@ -53,6 +53,15 @@ export default function TodoApp() {
     cancelEdit,
   } = useTasks({ userIdentifier, addNotification }) // Pass addNotification
 
+  useEffect(() => {
+    // Este código se ejecuta solo en el cliente, después de la hidratación.
+    const savedIdentifier = localStorage.getItem('todoApp:identifier');
+    if (savedIdentifier) {
+      setUserIdentifier(savedIdentifier);
+      setIsIdentifierLocked(true);
+    }
+  }, [setIsIdentifierLocked]); // Dependencia para asegurar que la función esté disponible
+
   // Removed local loading state and its useEffect
 
   const [completedCollapsed, setCompletedCollapsed] = useState(true)
@@ -60,6 +69,19 @@ export default function TodoApp() {
   const handleFocusTask = useCallback((taskId: string) => {
     setFocusedTaskId(taskId);
   }, []);
+
+  const handleLockToggle = () => {
+    if (isIdentifierLocked) {
+      // Acción de Unlock: limpiar localStorage
+      localStorage.removeItem('todoApp:identifier');
+      setIsIdentifierLocked(false);
+      setUserIdentifier(''); // Opcional: limpiar también el input
+    } else if (userIdentifier) {
+      // Acción de Lock: guardar en localStorage
+      localStorage.setItem('todoApp:identifier', userIdentifier);
+      setIsIdentifierLocked(true);
+    }
+  };
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -423,7 +445,7 @@ export default function TodoApp() {
                 disabled={isIdentifierLocked}
               />
               <button
-                onClick={() => setIsIdentifierLocked(!isIdentifierLocked)}
+                onClick={handleLockToggle}
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200 ${isIdentifierLocked
                   ? "bg-red-600 hover:bg-red-700 text-white"
                   : "bg-blue-600 hover:bg-blue-700 text-white"}

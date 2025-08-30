@@ -1,3 +1,28 @@
+## Fase 2A - Persistencia de Sesión con localStorage
+
+- **Objetivo:** Implementar la persistencia del `identifier` del usuario para que la sesión se "recuerde" entre refrescos de página.
+- **Estrategia:**
+    - Lógica de estado del `identifier` se mantiene en `page.tsx`.
+    - Acceso a `localStorage` protegido para compatibilidad con SSR.
+- **Cambios Realizados:**
+    - **`src/app/page.tsx`:**
+        - Se añadió un `useEffect` para restaurar el `identifier` desde `localStorage` al montar el componente.
+        - Se implementó `handleLockToggle` para guardar/limpiar el `identifier` en `localStorage` al hacer "Lock"/"Unlock".
+- **Verificación:**
+    - **Prueba 1 (Lock y Refresco):**
+        1. Ingresar un `identifier`.
+        2. Hacer clic en "Lock".
+        3. Refrescar la página.
+        4. **Resultado Esperado:** El `identifier` persiste y las tareas se cargan automáticamente.
+        5. **Resultado Obtenido:** OK.
+    - **Prueba 2 (Unlock y Refresco):**
+        1. Con un `identifier` "locked", hacer clic en "Unlock".
+        2. Refrescar la página.
+        3. **Resultado Esperado:** La aplicación se inicia con el campo de `identifier` vacío.
+        4. **Resultado Obtenido:** OK.
+
+---
+
 ## Fix-Pack 4 — Todo→Task migration + optimistic add (no back-end changes)
 
 **When (America/Monterrey):** 2025-08-30 09:10
@@ -206,3 +231,29 @@
 - The `handleSaveEdit` and `handleDeleteTask` callbacks in `page.tsx` still exist but are no longer directly called by `TaskItem`. They could be refactored or removed if no other parts of the application use them. For now, they are kept as they might be used by other UI elements not covered by this phase.
 - The `handleCyclePriority` callback in `page.tsx` is also no longer directly called by `TaskItem`. It is kept for the same reason.
 - The `handleToggleComplete` in `page.tsx` is still called by `TaskItem` directly. This is fine as it's not part of the keyboard shortcut scope for this phase.
+
+---
+
+## Fix-Pack 5 — Remove Redundant Client-Side Identifier Filter
+
+**When (America/Monterrey):** 2025-08-30 10:54:20
+**Status:** ✅ Done
+**Changed Files:**
+- `src/hooks/use-tasks.ts`
+
+**What & Why:**
+- **Problema:** Las tareas (nuevas y existentes) no aparecían en la UI.
+- **Causa Raíz:** Se descubrió un filtro redundante y erróneo en el cliente (`task.userIdentifier === userIdentifier`) dentro de `use-tasks.ts`. Como la API ya filtra los datos y el objeto `Task` no tiene `userIdentifier`, este filtro siempre resultaba en un array vacío, ocultando todas las tareas.
+- **Solución:** Se eliminó el filtro redundante. Ahora la UI confía en la lista de tareas ya filtrada que provee la API, asegurando que todos los datos correctos se muestren.
+
+**Verification:**
+- **`pnpm build`:** Completado exitosamente.
+- **`pnpm dev` + `health check`:** El servidor se inicia y `/api/health` devuelve 200 OK.
+- **QA Manual:**
+  - [x] Al hacer "Lock", las tareas existentes ahora son visibles.
+  - [x] Al crear una nueva tarea, esta aparece inmediatamente en la lista.
+  - [x] El comportamiento es consistente entre refrescos (después de volver a hacer "Lock").
+
+**Recuerda (Guardrails):**
+- La API es la única fuente de la verdad para el filtrado de datos por `identifier`. No se deben añadir filtros de este tipo en el cliente.
+- El flujo `Todo`→`Task` es crucial para que la UI funcione. Toda data de la API debe ser migrada antes de usarse en el estado.
