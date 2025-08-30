@@ -1,0 +1,2 @@
+docs/SECURITY.md:106:**Rendering:** Never inject user text as HTML; show as text (`dangerouslySetInnerHTML` **forbidden**).
+src/components/ui/chart.tsx:83:      dangerouslySetInnerHTML={{

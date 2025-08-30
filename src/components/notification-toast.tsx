@@ -8,6 +8,10 @@ export interface ToastNotification {
   title: string
   message?: string
   duration?: number
+  action?: {
+    label: string
+    onClick: () => void
+  }
 }
 
 interface NotificationToastProps {
@@ -99,6 +103,14 @@ export function NotificationToast({ notifications, onRemove }: NotificationToast
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold text-white">{notification.title}</p>
               {notification.message && <p className="text-sm text-gray-300 mt-1">{notification.message}</p>}
+              {notification.action && (
+                <button
+                  onClick={notification.action.onClick}
+                  className="mt-2 px-3 py-1 rounded-md bg-white/20 hover:bg-white/30 text-white text-xs font-medium transition-colors"
+                >
+                  {notification.action.label}
+                </button>
+              )}
             </div>
             <button
               onClick={() => onRemove(notification.id)}

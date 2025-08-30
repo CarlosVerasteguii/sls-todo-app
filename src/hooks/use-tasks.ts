@@ -1,9 +1,38 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef } from "react"
-import type { Task, Priority, TaskFilters, UndoAction } from "@/types/task"
-import { getSortedTasks, filterTasks, migrateTask, UndoManager } from "@/lib/task-utils"
+import type { Task, Priority, TaskFilters } from "@/types/task"
+import { getSortedTasks, filterTasks, migrateTask } from "@/lib/task-utils"
 import { ToastNotification } from "@/components/notification-toast"
+
+// Define UndoAction and UndoManager types/classes here
+export type UndoAction =
+  | { type: "create"; taskId: string; timestamp: number }
+  | { type: "update"; taskId: string; previousState: Task; timestamp: number }
+  | { type: "delete"; taskId: string; previousState: Task; timestamp: number }
+  | { type: "toggle"; taskId: string; previousState: Task; timestamp: number } // New type for toggle
+  | { type: "bulk_delete"; taskIds: string[]; previousState: Task[]; timestamp: number }
+  | { type: "bulk"; taskIds: string[]; previousState: Task[]; timestamp: number };
+
+class UndoManager {
+  private history: UndoAction[] = [];
+
+  addAction(action: UndoAction) {
+    this.history.push(action);
+  }
+
+  getLastAction(): UndoAction | undefined {
+    return this.history.pop();
+  }
+
+  clear() {
+    this.history = [];
+  }
+
+  get hasActions(): boolean {
+    return this.history.length > 0;
+  }
+}
 
 interface UseTasksOptions {
   userIdentifier?: string
@@ -16,7 +45,6 @@ export function useTasks({ userIdentifier, addNotification }: UseTasksOptions) {
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null)
   const [filters, setFilters] = useState<TaskFilters>({ status: ["active", "snoozed"] })
   const [undoManager] = useState(() => new UndoManager())
-  const [lastUndoAction, setLastUndoAction] = useState<UndoAction | null>(null)
   const [isIdentifierLocked, setIsIdentifierLocked] = useState<boolean>(false)
 
   // New states for API calls
@@ -183,42 +211,326 @@ export function useTasks({ userIdentifier, addNotification }: UseTasksOptions) {
     [userIdentifier, addNotification, undoManager, tasks, setLoading, setError, setRequestId], // Added tasks to dependencies
   )
 
-  const deleteTask = useCallback(
-    (id: string) => {
-      setTasks((prev) => {
-        const task = prev.find((t) => t.id === id)
-        if (!task) return prev
+  const restoreDeleted = useCallback(
+    async (task: Task) => {
+      if (!userIdentifier) {
+        addNotification({
+          type: "error",
+          title: "Action Blocked",
+          message: "Please lock an identifier to restore tasks.",
+        });
+        return;
+      }
 
-        undoManager.addAction({
-          type: "delete",
-          taskId: id,
-          previousState: task,
-          timestamp: Date.now(),
-        })
+      setLoading(true);
+      setError(null);
+      setRequestId(null);
 
-        setLastUndoAction({
-          type: "delete",
-          taskId: id,
-          previousState: task,
-          timestamp: Date.now(),
-        })
+      try {
+        // Re-create the task using POST /api/todos
+        const payload = {
+          identifier: userIdentifier,
+          title: task.title,
+          description: task.description,
+          priority: task.priority,
+          project: task.project,
+          tags: task.tags,
+          // Do not include 'id' or 'completed' as it's a new creation
+        };
 
-        return prev.filter((t) => t.id !== id)
-      })
+        const response = await fetch("/api/todos", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        });
+
+        const data = await response.json();
+
+        if (data.ok) {
+          const restoredTask: Task = data.data;
+          setTasks((prev) => [restoredTask, ...prev]); // Add back to the list
+          addNotification({
+            type: "success",
+            title: "Task Restored",
+            message: `"${restoredTask.title}" has been restored.`,
+          });
+        } else {
+          setError(data.error?.message || "An unknown error occurred");
+          setRequestId(data.request_id || null);
+          addNotification({
+            type: "error",
+            title: "API Error",
+            message: data.error?.message || "Failed to restore task.",
+          });
+          console.warn("API Error (restoreDeleted):", { code: data.error?.code, request_id: data.request_id });
+        }
+      } catch (err: any) {
+        setError(err.message || "Failed to restore task");
+        addNotification({
+          type: "error",
+          title: "Network Error",
+          message: err.message || "Failed to restore task.",
+        });
+        console.error("Failed to restore task:", err);
+      } finally {
+        setLoading(false);
+      }
     },
-    [undoManager],
-  )
+    [userIdentifier, addNotification, setLoading, setError, setRequestId],
+  );
+
+  const restoreToggled = useCallback(
+    async (task: Task, originalCompletedStatus: boolean) => {
+      if (!userIdentifier) {
+        addNotification({
+          type: "error",
+          title: "Action Blocked",
+          message: "Please lock an identifier to revert task status.",
+        });
+        return;
+      }
+
+      setLoading(true);
+      setError(null);
+      setRequestId(null);
+
+      try {
+        const payload = {
+          identifier: userIdentifier,
+          completed: originalCompletedStatus,
+        };
+
+        const response = await fetch(`/api/todos/${task.id}`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        });
+
+        const data = await response.json();
+
+        if (data.ok) {
+          const revertedTask: Task = data.data;
+          setTasks((prev) =>
+            prev.map((t) => (t.id === revertedTask.id ? revertedTask : t))
+          );
+          addNotification({
+            type: "success",
+            title: "Status Reverted",
+            message: `"${revertedTask.title}" status has been reverted.`,
+          });
+        } else {
+          setError(data.error?.message || "An unknown error occurred");
+          setRequestId(data.request_id || null);
+          addNotification({
+            type: "error",
+            title: "API Error",
+            message: data.error?.message || "Failed to revert task status.",
+          });
+          console.warn("API Error (restoreToggled):", { code: data.error?.code, request_id: data.request_id });
+        }
+      } catch (err: any) {
+        setError(err.message || "Failed to revert task status");
+        addNotification({
+          type: "error",
+          title: "Network Error",
+          message: err.message || "Failed to revert task status.",
+        });
+        console.error("Failed to revert task status:", err);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [userIdentifier, addNotification, setLoading, setError, setRequestId],
+  );
+
+  const deleteTask = useCallback(
+    async (id: string) => {
+      if (!userIdentifier) {
+        addNotification({
+          type: "error",
+          title: "Action Blocked",
+          message: "Please lock an identifier before deleting tasks.",
+        });
+        return;
+      }
+
+      const taskToDelete = tasks.find((t) => t.id === id);
+      if (!taskToDelete) return;
+
+      // Optimistic update: remove from UI immediately
+      setTasks((prev) => prev.filter((t) => t.id !== id));
+
+      setLoading(true);
+      setError(null);
+      setRequestId(null);
+
+      try {
+        const response = await fetch(`/api/todos/${id}?identifier=${encodeURIComponent(userIdentifier)}`, {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        });
+
+        const data = await response.json();
+
+        if (data.ok) {
+          addNotification({
+            type: "success",
+            title: "Task Deleted",
+            message: `"${taskToDelete.title}" has been deleted.`,
+            action: {
+              label: "Undo",
+              onClick: () => restoreDeleted(taskToDelete),
+            },
+            duration: 5000, // 5 seconds for undo
+          });
+          undoManager.addAction({
+            type: "delete",
+            taskId: id,
+            previousState: taskToDelete,
+            timestamp: Date.now(),
+          });
+          setLastUndoAction({
+            type: "delete",
+            taskId: id,
+            previousState: taskToDelete,
+            timestamp: Date.now(),
+          });
+        } else {
+          // Revert optimistic update
+          setTasks((prev) => [...prev, taskToDelete]);
+          setError(data.error?.message || "An unknown error occurred");
+          setRequestId(data.request_id || null);
+          addNotification({
+            type: "error",
+            title: "API Error",
+            message: data.error?.message || "Failed to delete task.",
+          });
+          console.warn("API Error (deleteTask):", { code: data.error?.code, request_id: data.request_id });
+        }
+      } catch (err: any) {
+        // Revert optimistic update
+        setTasks((prev) => [...prev, taskToDelete]);
+        setError(err.message || "Failed to delete task");
+        addNotification({
+          type: "error",
+          title: "Network Error",
+          message: err.message || "Failed to delete task.",
+        });
+        console.error("Failed to delete task:", err);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [userIdentifier, tasks, addNotification, undoManager, restoreDeleted, setLoading, setError, setRequestId],
+  );
 
   const toggleTaskComplete = useCallback(
-    (id: string) => {
-      const task = tasks.find((t) => t.id === id)
-      if (!task) return
+    async (id: string) => {
+      if (!userIdentifier) {
+        addNotification({
+          type: "error",
+          title: "Action Blocked",
+          message: "Please lock an identifier before updating tasks.",
+        });
+        return;
+      }
 
-      updateTask(id, {
-        status: task.status === "completed" ? "active" : "completed",
-      })
+      const originalTask = tasks.find((t) => t.id === id);
+      if (!originalTask) return;
+
+      const newCompletedStatus = !originalTask.completed; // Toggle completed status
+
+      // Optimistic update
+      setTasks((prev) =>
+        prev.map((task) =>
+          task.id === id ? { ...task, completed: newCompletedStatus, updatedAt: new Date().toISOString() } : task
+        )
+      );
+
+      setLoading(true);
+      setError(null);
+      setRequestId(null);
+
+      try {
+        const payload = {
+          identifier: userIdentifier,
+          completed: newCompletedStatus,
+        };
+
+        const response = await fetch(`/api/todos/${id}`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        });
+
+        const data = await response.json();
+
+        if (data.ok) {
+          addNotification({
+            type: "success",
+            title: newCompletedStatus ? "Task Completed" : "Task Uncompleted",
+            message: `"${originalTask.title}" has been marked as ${newCompletedStatus ? "completed" : "uncompleted"}.`,
+            action: {
+              label: "Undo",
+              onClick: () => restoreToggled(originalTask, originalTask.completed), // Pass original completed status
+            },
+            duration: 5000, // 5 seconds for undo
+          });
+          undoManager.addAction({
+            type: "toggle",
+            taskId: id,
+            previousState: originalTask,
+            timestamp: Date.now(),
+          });
+          setLastUndoAction({
+            type: "toggle",
+            taskId: id,
+            previousState: originalTask,
+            timestamp: Date.now(),
+          });
+        } else {
+          // Revert optimistic update
+          setTasks((prev) =>
+            prev.map((task) =>
+              task.id === id ? { ...task, completed: originalTask.completed, updatedAt: originalTask.updatedAt } : task
+            )
+          );
+          setError(data.error?.message || "An unknown error occurred");
+          setRequestId(data.request_id || null);
+          addNotification({
+            type: "error",
+            title: "API Error",
+            message: data.error?.message || "Failed to update task status.",
+          });
+          console.warn("API Error (toggleTaskComplete):", { code: data.error?.code, request_id: data.request_id });
+        }
+      } catch (err: any) {
+        // Revert optimistic update
+        setTasks((prev) =>
+          prev.map((task) =>
+            task.id === id ? { ...task, completed: originalTask.completed, updatedAt: originalTask.updatedAt } : task
+          )
+        );
+        setError(err.message || "Failed to update task status");
+        addNotification({
+          type: "error",
+          title: "Network Error",
+          message: err.message || "Failed to update task status.",
+        });
+        console.error("Failed to update task status:", err);
+      } finally {
+        setLoading(false);
+      }
     },
-    [tasks, updateTask],
+    [userIdentifier, tasks, addNotification, undoManager, restoreToggled, setLoading, setError, setRequestId],
   )
 
   const snoozeTask = useCallback(
@@ -290,58 +602,67 @@ export function useTasks({ userIdentifier, addNotification }: UseTasksOptions) {
 
   const undo = useCallback(() => {
     if (lastUndoAction && Date.now() - lastUndoAction.timestamp < 5000) {
-      if (lastUndoAction.type === "bulk_delete" && lastUndoAction.previousState) {
-        const tasksToRestore = lastUndoAction.previousState as Task[]
-        setTasks((prev) => [...prev, ...tasksToRestore])
-        setLastUndoAction(null)
-        return
-      }
-      // Restore from recent delete
       if (lastUndoAction.type === "delete" && lastUndoAction.previousState) {
-        setTasks((prev) => [...prev, lastUndoAction.previousState as Task])
-        setLastUndoAction(null)
-        return
+        restoreDeleted(lastUndoAction.previousState as Task);
+        setLastUndoAction(null);
+        return;
+      }
+      if (lastUndoAction.type === "toggle" && lastUndoAction.previousState) {
+        restoreToggled(lastUndoAction.previousState as Task, lastUndoAction.previousState.completed);
+        setLastUndoAction(null);
+        return;
+      }
+      if (lastUndoAction.type === "bulk_delete" && lastUndoAction.previousState) {
+        const tasksToRestore = lastUndoAction.previousState as Task[];
+        tasksToRestore.forEach(task => restoreDeleted(task));
+        setLastUndoAction(null);
+        return;
       }
     }
 
-    const action = undoManager.getLastAction()
-    if (!action) return
+    const action = undoManager.getLastAction();
+    if (!action) return;
 
     switch (action.type) {
       case "create":
         if (action.taskId) {
-          setTasks((prev) => prev.filter((t) => t.id !== action.taskId))
+          setTasks((prev) => prev.filter((t) => t.id !== action.taskId));
         }
-        break
+        break;
       case "update":
         if (action.taskId && action.previousState) {
-          setTasks((prev) => prev.map((t) => (t.id === action.taskId ? (action.previousState as Task) : t)))
+          setTasks((prev) => prev.map((t) => (t.id === action.taskId ? (action.previousState as Task) : t)));
         }
-        break
+        break;
       case "delete":
         if (action.previousState) {
-          setTasks((prev) => [...prev, action.previousState as Task])
+          setTasks((prev) => [...prev, action.previousState as Task]);
         }
-        break
+        break;
+      case "toggle":
+        if (action.taskId && action.previousState) {
+          setTasks((prev) => prev.map((t) => (t.id === action.taskId ? (action.previousState as Task) : t)));
+        }
+        break;
       case "bulk_delete":
         if (action.previousState) {
-          const tasksToRestore = action.previousState as Task[]
-          setTasks((prev) => [...prev, ...tasksToRestore])
+          const tasksToRestore = action.previousState as Task[];
+          setTasks((prev) => [...prev, ...tasksToRestore]);
         }
-        break
+        break;
       case "bulk":
         if (action.taskIds && action.previousState) {
-          const previousTasks = action.previousState as Task[]
+          const previousTasks = action.previousState as Task[];
           setTasks((prev) =>
             prev.map((task) => {
-              const previousTask = previousTasks.find((pt) => pt.id === task.id)
-              return previousTask || task
-            }),
-          )
+              const previousTask = previousTasks.find((pt) => pt.id === task.id);
+              return previousTask || task;
+            })
+          );
         }
-        break
+        break;
     }
-  }, [lastUndoAction, undoManager])
+  }, [lastUndoAction, undoManager, restoreDeleted, restoreToggled]);
 
   // Process snoozed tasks
   useEffect(() => {

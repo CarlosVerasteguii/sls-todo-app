@@ -1,0 +1,39 @@
+
+  ! eslint(no-unused-vars): Identifier 'useState' is imported but never used.
+   ,-[src/components/task-item.tsx:4:10]
+ 3 | import type React from "react"
+ 4 | import { useState } from "react"
+   :          ^^^^|^^^
+   :              `-- 'useState' is imported here
+ 5 | import type { Task, Priority } from "@/types/task"
+   `----
+  help: Consider removing this import.
+
+  x Unexpected token
+      ,-[src/app/page.tsx:1201:1]
+ 1200 |   )
+ 1201 | }
+      : ^
+      `----
+
+  ! eslint(no-unused-vars): Identifier 'NextResponse' is imported but never used.
+   ,-[src/app/api/health/route.ts:1:10]
+ 1 | import { NextResponse } from 'next/server';
+   :          ^^^^^^|^^^^^
+   :                `-- 'NextResponse' is imported here
+ 2 | import { createSuccessResponse } from '@/lib/utils/api-helpers';
+   `----
+  help: Consider removing this import.
+
+  ! eslint(no-unused-vars): Identifier 'migrateTask' is imported but never used.
+   ,-[src/hooks/use-tasks.ts:5:39]
+ 4 | import type { Task, Priority, TaskFilters } from "@/types/task"
+ 5 | import { getSortedTasks, filterTasks, migrateTask } from "@/lib/task-utils"
+   :                                       ^^^^^|^^^^^
+   :                                            `-- 'migrateTask' is imported here
+ 6 | import { ToastNotification } from "@/components/notification-toast"
+   `----
+  help: Consider removing this import.
+
+Found 3 warnings and 1 error.
+Finished in 243ms on 72 files with 88 rules using 8 threads.

@@ -32,21 +32,9 @@ export function TaskItem({
   onDeleteTask,
   onCyclePriority,
 }: TaskItemProps) {
-  const [isCompleting, setIsCompleting] = useState(false)
-  const [showDetails, setShowDetails] = useState(false)
-
-  const isComplete = task.status === "completed" || task.is_complete
-  const title = task.title
-  const priority = task.priority || "P2"
-  const isOverdue = task.dueAt && new Date(task.dueAt) < new Date()
-  const isSnoozed = task.status === "snoozed"
-
-  const handleToggleComplete = async (e: React.MouseEvent) => {
+  const handleToggleComplete = (e: React.MouseEvent) => {
     e.stopPropagation()
-    setIsCompleting(true)
-    await new Promise((resolve) => setTimeout(resolve, 150))
     onToggleComplete(task.id)
-    setIsCompleting(false)
   }
 
   const handleCardClick = (e: React.MouseEvent) => {
