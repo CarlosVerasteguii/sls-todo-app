@@ -5,7 +5,7 @@ import { useState } from "react"
 import type { Task, Priority } from "@/types/task"
 import { EditTaskForm } from "./edit-task-form"
 import { PRIORITY_COLORS, PRIORITY_LABELS, getRelativeTime } from "@/lib/task-utils"
-import { CountdownTimer } from "./countdown-timer"
+// import { CountdownTimer } from "./countdown-timer"
 
 interface TaskItemProps {
   task: Task
@@ -39,7 +39,6 @@ export function TaskItem({
   }
 
   const isSnoozed = task.status === "snoozed"
-  const isOverdue = Boolean(task.dueAt) && task.status === "active" && new Date(task.dueAt!) < new Date()
 
   const handleCardClick = (e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest('button, input, [role="button"]')) {
@@ -117,7 +116,7 @@ export function TaskItem({
           : task.completed
             ? "0 1px 4px rgba(0, 0, 0, 0.05)"
             : "0 2px 8px rgba(0, 0, 0, 0.08)",
-        borderLeft: task.dueAt && task.status === "active" && new Date(task.dueAt) < new Date() ? "3px solid #E73725" : "3px solid transparent",
+        borderLeft: "3px solid transparent",
         zIndex: showDetails || isSelected ? 10 : 1,
       }}
       tabIndex={task.id === focusedTaskId ? 0 : -1} // Updated tabIndex
@@ -216,36 +215,27 @@ export function TaskItem({
               </span>
             )}
 
-            {isOverdue && !task.completed && (
-              <span className="px-2 py-1 text-xs rounded-full bg-red-500/20 text-red-300">Overdue</span>
-            )}
-
-            {/* Countdown Timer - Now prominently displayed on the right */}
-            {task.dueAt && !task.completed && (
-              <div className="flex items-center">
-                <CountdownTimer
-                  dueAt={task.dueAt}
-                  className="px-3 py-1 rounded-full bg-black/30 text-white font-medium text-sm border border-white/10"
-                />
-              </div>
-            )}
+            {/* Overdue and countdown removed per PRD scope alignment */}
           </div>
         </div>
 
-        {(showDetails || isSelected) && (
-          <div className="mt-2 space-y-1 animate-fade-in relative z-20">
-            {task.description && (
-              <p className="text-sm" style={{ color: "var(--sls-text-secondary)" }}>
-                {task.description}
-              </p>
-            )}
-            {task.project && (
-              <p className="text-xs" style={{ color: "var(--sls-muted)" }}>
-                📁 {task.project}
-              </p>
-            )}
-          </div>
-        )}
+        <div
+          className={`mt-2 space-y-1 relative z-20 transition-opacity duration-200 ${
+            showDetails || isSelected ? "opacity-100" : "opacity-0 pointer-events-none"
+          }`}
+          style={{ minHeight: "1.5rem" }}
+        >
+          {task.description && (
+            <p className="text-sm" style={{ color: "var(--sls-text-secondary)" }}>
+              {task.description}
+            </p>
+          )}
+          {task.project && (
+            <p className="text-xs" style={{ color: "var(--sls-muted)" }}>
+              📁 {task.project}
+            </p>
+          )}
+        </div>
       </div>
 
       <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">

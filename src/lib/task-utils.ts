@@ -45,12 +45,8 @@ export function getSortedTasks(tasks: Task[], now: Date = new Date()): Task[] {
   const score = (t: Task) => [
     // Group by status first
     t.status === "active" ? 0 : t.status === "snoozed" ? 1 : t.status === "completed" ? 2 : 3,
-    // Within active: overdue first
-    t.status === "active" && t.dueAt && new Date(t.dueAt) < now ? 0 : 1,
     // Then by priority
     { P0: 0, P1: 1, P2: 2, P3: 3 }[t.priority],
-    // Then by due date
-    t.dueAt ? new Date(t.dueAt).getTime() : Number.MAX_SAFE_INTEGER,
     // Finally by updated date (most recent first)
     -(t.updatedAt ? new Date(t.updatedAt).getTime() : new Date().getTime()),
   ]
@@ -94,16 +90,7 @@ export function filterTasks(tasks: Task[], filters: TaskFilters, now: Date = new
       if (!matchesTitle && !matchesDescription && !matchesTags) return false
     }
 
-    // Overdue filter
-    if (filters.showOverdue && (!task.dueAt || new Date(task.dueAt) >= now)) return false
-
-    // Today filter
-    if (filters.showToday) {
-      if (!task.dueAt) return false
-      const taskDate = new Date(task.dueAt).toDateString()
-      const todayDate = now.toDateString()
-      if (taskDate !== todayDate) return false
-    }
+    // Due date filters removed (out of scope)
 
     return true
   })

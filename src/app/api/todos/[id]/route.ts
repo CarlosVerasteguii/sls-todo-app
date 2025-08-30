@@ -19,7 +19,7 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   const supabase = await createClient();
-  const { id } = params;
+  const id = params.id;
 
   try {
     const body = await request.json();
@@ -29,7 +29,7 @@ export async function PATCH(
       return createErrorResponse({ code: 'BAD_REQUEST', message: 'Identifier is required in the request body' }, 400);
     }
     const identifier_norm = (identifier as string).trim().toLowerCase();
-    
+
     const validatedData = todoUpdateSchema.parse(updatePayload);
 
     if (Object.keys(validatedData).length === 0) {
@@ -57,9 +57,9 @@ export async function PATCH(
         500
       );
     }
-    
+
     if (!data && !error) {
-       return createErrorResponse({ code: 'NOT_FOUND', message: 'Task not found or permission denied' }, 404);
+      return createErrorResponse({ code: 'NOT_FOUND', message: 'Task not found or permission denied' }, 404);
     }
 
     return createSuccessResponse<Todo>(data, 200);
@@ -83,7 +83,7 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   const supabase = await createClient();
-  const { id } = params;
+  const id = params.id;
 
   try {
     const body = await request.json();

@@ -359,7 +359,6 @@ export default function TodoApp() {
     priority?: Priority;
     tags?: string[];
     project?: string;
-    dueAt?: string;
   }
 
   const handleAddTask = useCallback(
@@ -369,7 +368,6 @@ export default function TodoApp() {
         priority: taskData.priority,
         tags: taskData.tags,
         project: taskData.project,
-        dueAt: taskData.dueAt,
       })
 
     },
