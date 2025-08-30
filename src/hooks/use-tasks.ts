@@ -1,8 +1,8 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef } from "react"
-import type { Task, Priority, TaskFilters, UndoAction } from "@/types/task"
-import { getSortedTasks, filterTasks, migrateTask } from "@/lib/task-utils"
+import type { Task, Priority, TaskFilters, UndoAction, Todo } from "@/types/task"
+import { getSortedTasks, filterTasks, toTask, toTasks } from "@/lib/task-utils"
 import { ToastNotification } from "@/components/notification-toast"
 
 class UndoManager {
@@ -81,20 +81,15 @@ export function useTasks({ userIdentifier, addNotification }: UseTasksOptions) {
         const data = await response.json();
 
         if (data.ok) {
-          const newTaskFromServer: Task = data.data;
-          setTasks((prev) => [newTaskFromServer, ...prev]); // Prepend new task
+          const createdTodo = data.data as Todo;
+          const createdTask = toTask(createdTodo);
+          setTasks((prev) => [createdTask, ...prev]); // optimistic with Task
           addNotification({
             type: "success",
             title: "Task created",
-            message: `"${newTaskFromServer.title}" has been added.`,
+            message: `"${createdTask.title}" has been added.`,
           });
-
-          undoManager.addAction({ // Still track for undo, but with server ID
-            type: "create",
-            taskId: newTaskFromServer.id,
-            timestamp: Date.now(),
-          });
-          return { ok: true, id: newTaskFromServer.id, request_id: data.request_id };
+          return { ok: true, id: createdTask.id, request_id: data.request_id };
         } else {
           setError(data.error?.message || "An unknown error occurred");
           setRequestId(data.request_id || null);
@@ -156,7 +151,7 @@ export function useTasks({ userIdentifier, addNotification }: UseTasksOptions) {
         const data = await response.json();
 
         if (data.ok) {
-          const updatedTaskFromServer: Task = data.data;
+          const updatedTaskFromServer = toTask(data.data as Todo);
           setTasks((prev) =>
             prev.map((task) => (task.id === id ? updatedTaskFromServer : task))
           );
@@ -243,7 +238,7 @@ export function useTasks({ userIdentifier, addNotification }: UseTasksOptions) {
         const data = await response.json();
 
         if (data.ok) {
-          const restoredTask: Task = data.data;
+          const restoredTask = toTask(data.data as Todo);
           setTasks((prev) => [restoredTask, ...prev]); // Add back to the list
           addNotification({
             type: "success",
@@ -309,7 +304,7 @@ export function useTasks({ userIdentifier, addNotification }: UseTasksOptions) {
         const data = await response.json();
 
         if (data.ok) {
-          const revertedTask: Task = data.data;
+          const revertedTask = toTask(data.data as Todo);
           setTasks((prev) =>
             prev.map((t) => (t.id === revertedTask.id ? revertedTask : t))
           );
@@ -448,7 +443,14 @@ export function useTasks({ userIdentifier, addNotification }: UseTasksOptions) {
       // Optimistic update
       setTasks((prev) =>
         prev.map((task) =>
-          task.id === id ? { ...task, completed: newCompletedStatus, updatedAt: new Date().toISOString() } : task
+          task.id === id
+            ? {
+              ...task,
+              completed: newCompletedStatus,
+              status: newCompletedStatus ? "completed" : "active",
+              updatedAt: new Date().toISOString(),
+            }
+            : task
         )
       );
 
@@ -474,6 +476,8 @@ export function useTasks({ userIdentifier, addNotification }: UseTasksOptions) {
         const data = await response.json();
 
         if (data.ok) {
+          const updatedTask = toTask(data.data as Todo);
+          setTasks((prev) => prev.map((t) => (t.id === id ? updatedTask : t)));
           addNotification({
             type: "success",
             title: newCompletedStatus ? "Task Completed" : "Task Uncompleted",
@@ -500,7 +504,7 @@ export function useTasks({ userIdentifier, addNotification }: UseTasksOptions) {
           // Revert optimistic update
           setTasks((prev) =>
             prev.map((task) =>
-              task.id === id ? { ...task, completed: originalTask.completed, updatedAt: originalTask.updatedAt } : task
+              task.id === id ? { ...task, completed: originalTask.completed, status: originalTask.status, updatedAt: originalTask.updatedAt } : task
             )
           );
           setError(data.error?.message || "An unknown error occurred");
@@ -516,7 +520,7 @@ export function useTasks({ userIdentifier, addNotification }: UseTasksOptions) {
         // Revert optimistic update
         setTasks((prev) =>
           prev.map((task) =>
-            task.id === id ? { ...task, completed: originalTask.completed, updatedAt: originalTask.updatedAt } : task
+            task.id === id ? { ...task, completed: originalTask.completed, status: originalTask.status, updatedAt: originalTask.updatedAt } : task
           )
         );
         setError(err.message || "Failed to update task status");
@@ -745,9 +749,12 @@ export function useTasks({ userIdentifier, addNotification }: UseTasksOptions) {
       const data = await response.json()
 
       if (data.ok) {
-        setTasks(data.items || [])
+        // Normalize API envelope differences: some return items, others data
+        const todos = (data.items ?? data.data ?? []) as Todo[]
+        const migrated = toTasks(todos)
+        setTasks(migrated)
         setRequestId(data.request_id || null)
-        console.log("Fetched tasks length:", (data.items || []).length)
+        console.log("Loaded tasks (after migrate):", migrated.length)
       } else {
         setError(data.error?.message || "An unknown error occurred")
         setRequestId(data.request_id || null)
@@ -792,13 +799,13 @@ export function useTasks({ userIdentifier, addNotification }: UseTasksOptions) {
     }
   }, [userIdentifier, isIdentifierLocked, loadTasks])
 
-  const userFilteredTasks = userIdentifier ? tasks.filter((task) => task.userIdentifier === userIdentifier) : []
-
-  const filteredAndSortedTasks = getSortedTasks(filterTasks(userFilteredTasks, filters))
+  // tasks from state is already filtered by the API. This is our source of truth.
+  const allTasksForUI = tasks
+  const filteredAndSortedTasks = getSortedTasks(filterTasks(allTasksForUI, filters))
 
   return {
     tasks: filteredAndSortedTasks,
-    allTasks: userFilteredTasks,
+    allTasks: allTasksForUI,
     selectedTaskIds,
     setSelectedTaskIds,
     editingTaskId,

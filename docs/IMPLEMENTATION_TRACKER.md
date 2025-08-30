@@ -1,3 +1,22 @@
+## Fix-Pack 4 — Todo→Task migration + optimistic add (no back-end changes)
+
+**When (America/Monterrey):** 2025-08-30 09:10
+**Status:** ✅ Done
+**Changed Files:**
+- src/lib/task-utils.ts
+- src/hooks/use-tasks.ts
+
+**What & Why:**
+- Added `toTask`/`toTasks` to convert DB `Todo` rows into UI `Task` shape.
+- Applied migration in `loadTasks` and `createTask` to ensure `status` is present.
+- Kept API envelopes intact, no changes to API or DB.
+- Preserved `loading` for fetch and `isMutating` for mutations.
+
+**Verification:**
+- [x] tsc --noEmit PASS
+- [x] build PASS
+- [ ] dev up + /api/health 200 OK (local Start-Process issue; run `pnpm dev` manually)
+
 ## Fix-Pack 3C — Stabilize shims (hook + TaskItem)
 
 **When (America/Monterrey):** 2025-08-30 08:58

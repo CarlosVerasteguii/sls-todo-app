@@ -1,4 +1,4 @@
-import type { Task, TaskFilters, UndoAction } from "@/types/task"
+import type { Todo, Task, TaskFilters, UndoAction } from "@/types/task"
 
 export const PRIORITY_COLORS = {
   P0: "#E73725", // SLS red - urgent
@@ -13,6 +13,33 @@ export const PRIORITY_LABELS = {
   P2: "Medium",
   P3: "Low",
 } as const
+
+// Converts API DB row (Todo) into UI Task shape.
+export function toTask(todo: Todo): Task {
+  // Some backends use `completed`, others `is_complete`; normalize.
+  const isCompleted =
+    (todo as any).completed ?? (todo as any).is_complete ?? false;
+
+  const updatedAt =
+    (todo as any).updated_at ?? (todo as any).updatedAt ?? undefined;
+
+  // If DB doesn't track completed_at, fall back to updatedAt when completed.
+  const completedAt =
+    isCompleted
+      ? (todo as any).completed_at ?? updatedAt ?? new Date().toISOString()
+      : null;
+
+  return {
+    ...todo,
+    status: isCompleted ? "completed" : "active",
+    completedAt,
+    updatedAt,
+  };
+}
+
+export function toTasks(todos: Todo[] = []): Task[] {
+  return todos.map(toTask);
+}
 
 export function getSortedTasks(tasks: Task[], now: Date = new Date()): Task[] {
   const score = (t: Task) => [
