@@ -260,6 +260,58 @@
 
 ---
 
+## Chore: Setup Vitest and React Testing Library for Component Testing
+
+**When (America/Monterrey):** 2025-08-31
+**Status:** ✅ Done
+
+**Changed Files:**
+- `package.json` (add scripts, set `type: module`)
+- `tsconfig.json` (add `types` for `vitest/globals` and `@testing-library/jest-dom`)
+- `vitest.config.ts` (new)
+- `vitest.setup.ts` (new)
+
+**What & Why:**
+- Aligned with `TEST-PLAN.md` to enable basic integration tests at the component level.
+- Chosen tools: Vitest (fast, Next.js-friendly) + React Testing Library (user-centric testing API).
+- `jsdom` environment configured; `@/` alias resolves to `src/` for parity with app code.
+- Project set to ESM (`"type": "module"`) to satisfy Vitest/Vite ESM requirements.
+
+**Verification:**
+- Temporary test `tests/example.test.tsx` created and executed with `pnpm test` → PASS.
+- Removed the temporary test after confirming setup.
+
+**Guardrails honored:**
+- Only configuration files were modified; no changes in `src/` app code.
+
+---
+
+## Chore: Refine Vitest Configuration Based on Audit
+
+**When (America/Monterrey):** 2025-08-31
+**Status:** ✅ Done
+
+**Changed Files:**
+- `vitest.setup.ts` (improved type integration)
+- `tsconfig.json` (enhanced test directory coverage)
+
+**What & Why:**
+- **Improved Type Integration:** Updated `vitest.setup.ts` to use `@testing-library/jest-dom/vitest` for better Vitest-specific type integration.
+- **Enhanced Test Coverage:** Added `tests/**/*.ts` and `tests/**/*.tsx` to `tsconfig.json` include patterns to ensure test files are properly covered by TypeScript compilation.
+- **Configuration Validation:** Verified that `pnpm test` executes without configuration errors, confirming the refined setup is valid.
+
+**Verification:**
+- `pnpm test` executes successfully with no configuration errors.
+- TypeScript compilation includes test directory patterns.
+- Jest-dom types are properly integrated with Vitest environment.
+
+**Guardrails honored:**
+- Only configuration files modified; no application code changes.
+- No dependencies added or removed.
+- Configuration improvements maintain existing functionality while enhancing type safety and coverage.
+
+---
+
 ## Fase 2B - Fix: Align DELETE Request with API Contract
 
 **When (America/Monterrey):** 2025-08-30 15:30:00 CST (UTC-6)
@@ -292,6 +344,52 @@
 - No se identificaron brechas críticas que requieran cambios de código. Las pequeñas inconsistencias (ciclo de prioridad, alcance de Undo) se consideran evoluciones del diseño y son aceptables.
 
 **Verification:**
+
+---
+
+## Test: Create Failing Test for Bulk Delete Shortcut (CTRL+A + DEL)
+
+**When (America/Monterrey):** 2025-08-31
+**Status:** ✅ Added (expected to fail)
+
+**Changed Files:**
+- `src/app/page.test.tsx`
+
+**What & Why:**
+- Se agrega un test de componente con Vitest + React Testing Library para reproducir el bug reportado: "CTRL+A seguido de DEL no elimina las tareas seleccionadas".
+- El test mockea `useTasks` para retornar un conjunto controlado de tareas (2 activas, 1 completada), fuerza `isIdentifierLocked = true`, y expone `bulkDelete` como un spy.
+- Acciones simuladas: `userEvent.keyboard('{Control>}{a}{/Control}')` y luego `{Delete}`.
+- Aserciones clave (que FALLAN con la implementación actual):
+  - `bulkDelete` es llamado una vez.
+  - `bulkDelete` es llamado con `['id-task-1','id-task-2']` (IDs de tareas activas).
+
+**Outcome esperado actualmente:**
+- El test falla porque la página maneja `Delete` solo para `focusedTaskId` y no para el set de selección (bulk). Esto confirma el defect y servirá de guía para el fix.
+
+**Guardrails:**
+- No se modificó código de la aplicación. Solo se añadió un archivo de test.
+
+---
+
+## Fix: Implement Bulk Delete Shortcut (CTRL+A + DEL)
+
+**When (America/Monterrey):** 2025-08-31
+**Status:** ✅ Done
+
+**Changed Files:**
+- `src/app/page.tsx`
+- `src/app/page.test.tsx`
+
+**What & Why:**
+- Se aplicó TDD: primero se creó un test que falla capturando el bug en el atajo de teclado (CTRL+A → DEL). Luego se implementó la lógica de borrado en lote en el manejador global de teclado.
+- Teclas `Delete`/`Backspace` ahora priorizan el borrado en lote cuando hay selección (`selectedTaskIds.size > 0`), llamando a `bulkDelete(Array.from(selectedTaskIds))`, limpiando la selección y el foco.
+- Se añadió `selectedTaskIds` y `bulkDelete` al array de dependencias del `useEffect` que registra el handler para asegurar que se use el estado actual.
+- El mock del test de `useTasks` se volvió stateful usando `useState` para reflejar re-renders cuando cambia la selección.
+
+**Verification:**
+- `pnpm test` → PASS: el test previamente rojo ahora pasa.
+- Validación manual recomendada: en la UI, con identificador bloqueado, `Ctrl+A` seguido de `Del` elimina todas las tareas activas seleccionadas.
+
 - **Auditoría de Código:** Completada.
 - **Pruebas Manuales (Confirmación):** El comportamiento de `E`, `P`, `Delete`, `CTRL+A`, `CTRL+Z` y `ESC` coincide con la implementación esperada.
 

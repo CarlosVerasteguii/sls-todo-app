@@ -45,6 +45,8 @@ export function TaskItem({
       return
     }
     onSelect(task.id, e.ctrlKey || e.metaKey)
+    // Also notify focus so Delete without selection targets this task
+    onFocus(task.id)
   }
 
   const handleDoubleClick = (e: React.MouseEvent) => {

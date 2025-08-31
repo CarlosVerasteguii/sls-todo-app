@@ -133,7 +133,13 @@ export default function TodoApp() {
           break;
         case "Delete":
         case "Backspace":
-          if (focusedTaskId && !editingTaskId) {
+          if (selectedTaskIds.size > 0) {
+            e.preventDefault();
+            const idsToDelete = Array.from(selectedTaskIds);
+            bulkDelete(idsToDelete);
+            setSelectedTaskIds(new Set());
+            setFocusedTaskId(null);
+          } else if (focusedTaskId && !editingTaskId) {
             e.preventDefault();
             deleteTask(focusedTaskId);
             setFocusedTaskId(null); // Clear focused task after deletion
@@ -190,6 +196,8 @@ export default function TodoApp() {
     setFocusedTaskId,
     setEditingTaskId,
     addNotification,
+    selectedTaskIds,
+    bulkDelete,
   ]);
 
   useEffect(() => {
