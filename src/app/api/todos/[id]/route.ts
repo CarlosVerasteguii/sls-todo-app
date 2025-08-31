@@ -16,9 +16,10 @@ const todoUpdateSchema = z.object({
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: { id: string } }
 ) {
   const supabase = await createClient();
+  const params = await context.params;
   const id = params.id;
 
   try {
@@ -80,9 +81,10 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: { id: string } }
 ) {
   const supabase = await createClient();
+  const params = await context.params;
   const id = params.id;
 
   try {

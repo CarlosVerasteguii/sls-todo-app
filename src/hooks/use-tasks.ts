@@ -604,23 +604,32 @@ export function useTasks({ userIdentifier, addNotification }: UseTasksOptions) {
   )
 
   const bulkUpdate = useCallback(
-    (taskIds: string[], updates: Partial<Task>) => {
-      const previousStates = tasks.filter((t) => taskIds.includes(t.id))
-
+    async (taskIds: string[], updates: Partial<Task>) => {
+      // Mantenemos el optimistic update
+      const previousStates = tasks.filter((t) => taskIds.includes(t.id));
       setTasks((prev) =>
         prev.map((task) =>
-          taskIds.includes(task.id) ? { ...task, ...updates, updatedAt: new Date().toISOString() } : task,
-        ),
-      )
+          taskIds.includes(task.id) ? { ...task, ...updates, updatedAt: new Date().toISOString() } : task
+        )
+      );
 
-      undoManager.addAction({
-        type: "bulk",
-        taskIds,
-        previousState: previousStates,
-        timestamp: Date.now(),
-      })
+      // Llamadas a la API en paralelo
+      try {
+        await Promise.all(
+          taskIds.map(id => updateTask(id, updates))
+        );
+        // La notificación de éxito ya se maneja en page.tsx
+      } catch (error) {
+        // Si falla, revertimos el estado y mostramos un error
+        setTasks(previousStates);
+        addNotification({
+          type: "error",
+          title: "Bulk Update Failed",
+          message: "Could not update all tasks. Please try again.",
+        });
+      }
     },
-    [tasks, undoManager],
+    [tasks, updateTask, addNotification], // Añadir dependencias
   )
 
   const bulkDelete = useCallback(
@@ -798,7 +807,7 @@ export function useTasks({ userIdentifier, addNotification }: UseTasksOptions) {
         abortControllerRef.current = null;
       }
     }
-  }, [userIdentifier, isIdentifierLocked, loadTasks])
+  }, [userIdentifier, isIdentifierLocked])
 
   // tasks from state is already filtered by the API. This is our source of truth.
   const allTasksForUI = tasks

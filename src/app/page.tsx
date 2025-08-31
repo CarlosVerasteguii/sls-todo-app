@@ -264,7 +264,7 @@ export default function TodoApp() {
 
   const handleBulkComplete = useCallback(() => {
     if (selectedTaskIds.size > 0) {
-      bulkUpdate(Array.from(selectedTaskIds), { status: "completed" })
+      bulkUpdate(Array.from(selectedTaskIds), { completed: true })
       setSelectedTaskIds(new Set())
       addNotification({
         type: "success",
@@ -288,16 +288,13 @@ export default function TodoApp() {
     (taskId: string) => {
       const task = tasks.find((t) => t.id === taskId) || allTasks.find((t) => t.id === taskId)
       if (task) {
-        const updates =
-          task.status === "completed"
-            ? ({ status: "active", completedAt: null } as const)
-            : ({ status: "completed", completedAt: new Date().toISOString() } as const)
+        const updates = { completed: !task.completed }
 
         updateTask(taskId, updates)
         addNotification({
           type: "success",
-          title: task.status === "completed" ? "Task reactivated" : "Task completed",
-          message: `"${task.title}" ${task.status === "completed" ? "marked as active" : "marked as complete"}`,
+          title: !task.completed ? "Task completed" : "Task reactivated",
+          message: `"${task.title}" marked as ${!task.completed ? "complete" : "active"}`,
         })
       }
     },
