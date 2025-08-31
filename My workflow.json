@@ -1,0 +1,1132 @@
+{
+  "name": "My workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "enhance",
+        "options": {
+          "ignoreBots": true,
+          "rawBody": true,
+          "responseData": "{\"ok\":true,\"received\":true}"
+        }
+      },
+      "id": "2e87c673-e7e7-4aac-9939-1a40e69c6521",
+      "name": "Webhook - Enhance",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        -880,
+        -272
+      ],
+      "webhookId": "6cd69d59-3335-48e7-9f1b-cc6775126d2b"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "1c1a7d1e-6f1a-4a76-9faf-5f7d2c3e9a11",
+              "leftValue": "={{$json[\"skipped\"]}}",
+              "operator": {
+                "type": "boolean",
+                "operation": "isTrue",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "aeaf298f-5717-4ee6-9df1-d6f76a19d5c6",
+      "name": "IF WA Skipped?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -144,
+        464
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Log and stop when WA message lacks hashtag\nconst j = items[0].json;\nreturn [{ json: { ok: true, op: 'whatsapp', skipped: true, reason: j.reason || 'missing_hashtag' } }];\n"
+      },
+      "id": "7784ccbd-9157-4d36-bf08-238d5d8eaac5",
+      "name": "WA Skip Log",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        48,
+        672
+      ]
+    },
+    {
+      "parameters": {
+        "content": "Para pruebas sin coste de API: deshabilita el nodo ‘LLM (OpenAI) — Call’ y conecta la salida de ‘Build Prompt (System+User)’ a la entrada de ‘Mock LLM JSON’. Luego conecta ‘Mock LLM JSON’ → ‘Parse LLM Output’."
+      },
+      "id": "38b76d23-1a4e-468d-bae6-e4f870c9e8db",
+      "name": "Sticky: LLM Mock Guide",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -432,
+        -608
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Flatten: aceptar payload en `body` o en raíz, y normalizar\nconst src = items[0].json;\nconst b = (src && typeof src.body === 'object') ? src.body : src;\n\nfunction isUUID(v){\n  return /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/.test((v || ''));\n}\n\nif (!b || !isUUID(b.todo_id) || !b.title) {\n  throw new Error('BAD_REQUEST: todo_id (uuid v4) and title are required');\n}\n\n// deja los campos en la raíz para que viajen por todo el flujo\nitems[0].json = { ...b, meta: src.meta || {} };\nreturn items;\n"
+      },
+      "id": "31223757-4e20-4e96-83b9-0dcd19455765",
+      "name": "Validate Input",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -624,
+        -272
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Soft de-dupe for ~15 minutes per (todo_id|source)\nconst b = items[0].json;\nconst key = `${b.todo_id}|${b.meta?.source||''}`;\nconst store = this.getWorkflowStaticData('global');\nconst now = Date.now();\nconst TTL = 15 * 60 * 1000; // 15 min\nlet map = store.dedupe || {};\nif (map[key] && (now - map[key]) < TTL) {\n  // Mark and keep original payload; downstream IF will bifurcate\n  return [{ json: { ...b, deduped: true, dedupe_reason: 'ttl_15m' } }];\n}\nmap[key] = now;\nstore.dedupe = map;\nreturn items;\n"
+      },
+      "id": "d3ae526a-bc61-4922-bd40-ebae7fe1c850",
+      "name": "De-dupe Guard (soft)",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -384,
+        -272
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "f2b3a31f-2a75-4d6c-b2aa-3a3a0a3d0c0a",
+              "leftValue": "={{$json[\"deduped\"]}}",
+              "operator": {
+                "type": "boolean",
+                "operation": "isTrue",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "bdf2bf5a-7b15-4870-8000-1489da375843",
+      "name": "IF Duplicated?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -192,
+        -272
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Log and stop on duplicate enhance events\nconst j = items[0].json;\nreturn [{ json: { ok: true, op: 'enhance', duplicated: true, todo_id: j.todo_id } }];\n"
+      },
+      "id": "bd7e7f8a-64ad-46d1-986d-1c47f7a93e3f",
+      "name": "Duplicate Log (Enhance)",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -16,
+        -560
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "const j = items[0].json;   // todos los campos que ya venían\nconst { title, meta } = j;\n\nconst locale = meta?.locale || '';\nconst tz = meta?.tz || '';\n\nconst system = [\n  'You are an assistant that returns ONLY raw JSON.',\n  'Output ONLY raw JSON, no markdown, no code fences, no commentary.',\n  'Do not use bullets or numbering. Keep language consistent with the input.',\n  'Do not include links, emails, or phone numbers.',\n  'Do not provide medical, legal, or financial advice.',\n  'If you cannot comply, return: {\"enhanced_description\": null, \"steps\": []}',\n].join('\\n');\n\nconst user = [\n  'Title: \"' + String(title).trim() + '\"',\n  locale ? 'Locale: ' + locale : '',\n  tz ? 'Timezone: ' + tz : '',\n  'Context: The user is managing tasks in a simple to-do list.',\n  'Goal: Clarify what success looks like, give pragmatic, short steps.',\n  'Return ONLY JSON with keys: enhanced_description, steps.'\n].filter(Boolean).join('\\n');\n\n// devolver todo lo original + system y user\nreturn [{ json: { ...j, system, user } }];\n"
+      },
+      "id": "53d149f1-b613-45a5-a680-c4e3777b35e1",
+      "name": "Build Prompt (System+User)",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -48,
+        -144
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "const j = items[0].json;\n\nlet enhanced_description = null;\nlet steps = [];\n\n// Raw puede venir como string o como objeto\nlet raw = j?.choices?.[0]?.message?.content ?? j?.content ?? null;\n\ntry {\n  const payload = (raw && typeof raw === 'string') ? JSON.parse(raw) : (raw ?? {});\n  if (typeof payload.enhanced_description === 'string') {\n    enhanced_description = payload.enhanced_description.slice(0, 400);\n  }\n  if (Array.isArray(payload.steps)) {\n    steps = payload.steps.slice(0, 8).map(s => String(s).slice(0, 90));\n  }\n} catch (err) {\n  // Silencioso: si falla, dejamos nulos para que IF Has Content no pase\n}\n\nreturn [{ json: { ...j, enhanced_description, steps } }];\n"
+      },
+      "id": "b07c4e65-3033-4247-a643-5d923805c5ad",
+      "name": "Parse LLM Output",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        336,
+        -272
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "33500b5e-07a4-45da-ba0e-903a50ca791f",
+              "leftValue": "={{$json[\"enhanced_description\"]}}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "076b14e0-5f53-4c49-900d-5883e6b81515",
+              "leftValue": "={{ ($json[\"steps\"] || []).length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "535684ab-fc55-40d8-8f36-0179471ae171",
+      "name": "IF Has Content",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        576,
+        -272
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Toma los datos de los nodos anteriores\nconst trig = $('Validate Input').item.json;\nconst e = items[0].json;\n\n// Construye el objeto payload que quieres enviar\nconst payload = {\n  todo_id: trig.todo_id,\n  identifier: trig.identifier,\n  title: trig.title,\n  enhanced_description: e.enhanced_description ?? null,\n  steps: Array.isArray(e.steps) ? e.steps : []\n};\n\n// Crea la representación de texto EXACTA y guárdala\nconst rawBodyString = JSON.stringify(payload);\n\n// Devuelve tanto el objeto como el texto\nreturn [{\n  json: {\n    payload: payload,\n    rawBody: rawBodyString \n  }\n}];"
+      },
+      "id": "f9fe5b29-5220-47b0-b971-951fc793360f",
+      "name": "Build Callback Payload",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        816,
+        -352
+      ]
+    },
+    {
+      "parameters": {
+        "action": "hmac",
+        "type": "SHA256",
+        "value": "={{ $('Build Callback Payload').item.json.rawBody }}",
+        "secret": "={{ $vars.WORKFLOW_SIGNING_SECRET }}"
+      },
+      "id": "d2f9516e-f0a1-4bee-ab9a-b14a8fa80e9f",
+      "name": "Sign Callback (HMAC, optional)",
+      "type": "n8n-nodes-base.crypto",
+      "typeVersion": 1,
+      "position": [
+        1072,
+        -352
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $vars.APP_API_BASE }}/api/webhooks/enhance\n",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "X-Workflow-Signature",
+              "value": "={{ $('Sign Callback (HMAC, optional)').item.json.data }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "body": "={{ $('Build Callback Payload').item.json.rawBody }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          },
+          "timeout": 10000
+        }
+      },
+      "id": "972a598e-51b4-4fd8-afa8-aa49ebb2888e",
+      "name": "POST /api/webhooks/enhance",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1296,
+        -352
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "da51bee5-f655-46bf-8fb0-9fb3174e6e88",
+              "leftValue": "={{ Number($node[\"POST /api/webhooks/enhance\"].json.statusCode ?? 0) }}",
+              "rightValue": 200,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            },
+            {
+              "id": "4b89e643-5929-41ec-a5c2-ce89c6d94b85",
+              "leftValue": "={{ Number($node[\"POST /api/webhooks/enhance\"].json.statusCode ?? 0) }}",
+              "rightValue": 300,
+              "operator": {
+                "type": "number",
+                "operation": "lt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {
+          "looseTypeValidation": true
+        }
+      },
+      "id": "69213b08-acad-480b-8420-07b47f28589d",
+      "name": "IF Callback 2xx?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1536,
+        -352
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "return [{ json: { ok: true, op: 'enhance', todo_id: $('Build Callback Payload').item.json.todo_id } }];"
+      },
+      "id": "b43e67fd-e704-4359-bff7-786db8e00804",
+      "name": "Success Log",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        1776,
+        -432
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "const code = $json.statusCode;\nreturn [{ json: { ok: false, op: 'enhance', statusCode: code, note: code===404 ? 'task deleted (stop)' : 'callback failed' } }];\n"
+      },
+      "id": "cb110566-a5e8-4167-a5e4-f48e0247343a",
+      "name": "Failure Log",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        1776,
+        -272
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "wa-inbound",
+        "options": {
+          "ignoreBots": true,
+          "rawBody": true,
+          "responseData": "{\"ok\":true}"
+        }
+      },
+      "id": "b629c8d1-91f5-4281-b7ea-f27654675e0a",
+      "name": "Webhook - WhatsApp Inbound",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        -832,
+        464
+      ],
+      "webhookId": "ba018dfa-ed19-4c0e-9730-9b4d890ece70"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Normalize provider payload (Evolution-like)\nconst body = items[0].json || {};\nfunction pick(...vals){ for (const v of vals){ if (v != null && v !== '') return v; } return null; }\nconst raw_text = pick(body.message, body.text, body.body, body?.messages?.[0]?.text?.body, body?.messages?.[0]?.body, body?.messages?.[0]?.message) || '';\nconst sender = pick(body.from, body.sender, body?.messages?.[0]?.from) || '';\nconst message_id = pick(body.id, body?.messages?.[0]?.id) || `${Date.now()}-${Math.random()}`;\nconst timestamp = pick(body.timestamp, body?.messages?.[0]?.timestamp) || new Date().toISOString();\n// Heuristic language (very rough)\nconst lower = String(raw_text).toLowerCase();\nconst lang = /\\b(el|la|los|las|para|con|y|de)\\b/.test(lower) ? 'es' : 'en';\nreturn [{ json: { raw_text, sender, message_id, timestamp, lang } }];\n"
+      },
+      "id": "a10aaa89-b224-4029-8824-d392cd2ef701",
+      "name": "Normalize & Extract",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -576,
+        464
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Filter by hashtag (mark-and-bifurcate)\nconst HASHTAG = (process.env.WHATSAPP_ALLOWED_HASHTAG || '#to-do-list').toLowerCase();\nconst j = items[0].json || {};\n\n// FIX: Access the 'message' property inside the 'raw_text' object\nconst messageText = j.raw_text?.message || '';\nconst t = messageText.toLowerCase();\n\nif (!t.includes(HASHTAG)) {\n  // Keep original payload and mark as skipped for downstream IF\n  return [{ json: { ...j, skipped: true, reason: 'missing_hashtag' } }];\n}\n\nreturn items;"
+      },
+      "id": "1760e28b-e2d9-4f58-ad0d-20663d13c621",
+      "name": "IF Hashtag Present",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -336,
+        464
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// De-dupe on message_id for 12h\nconst { message_id } = items[0].json;\nconst store = this.getWorkflowStaticData('global');\nconst now = Date.now();\nconst TTL = 12 * 60 * 60 * 1000;\nlet map = store.wa_dedupe || {};\nif (map[message_id] && (now - map[message_id]) < TTL) {\n  return [{ json: { skipped: true, reason: 'dedupe' } }];\n}\nmap[message_id] = now;\n// prune old\nfor (const k of Object.keys(map)) { if ((now - map[k]) > TTL) delete map[k]; }\nstore.wa_dedupe = map;\nreturn items;\n"
+      },
+      "id": "1619b57a-2779-47b8-bdff-61a8e02f445f",
+      "name": "De-dupe WA (12h)",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        80,
+        464
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Parse commands: add|list|done; remove hashtag token first occurrence\nconst HASHTAG = (process.env.WHATSAPP_ALLOWED_HASHTAG || '#to-do-list');\nconst j = items[0].json;\n\n// FIX: Access the 'message' property from the 'raw_text' object\nconst messageText = j.raw_text?.message || '';\nconst t = messageText.replace(new RegExp(HASHTAG, 'i'), '').trim();\n\nconst lower = t.toLowerCase();\nlet command = 'unknown';\nlet args = { title: null, priority: null, project: null, tags: null, taskId: null };\n\nif (/^list\\b/.test(lower) || /^lista\\b/.test(lower) || /^listar\\b/.test(lower) || /^mostrar\\b/.test(lower)) {\n  command = 'list';\n} else if (/^done\\s+/.test(lower) || /^hecho\\s+/.test(lower) || /^completado\\s+/.test(lower)) {\n  command = 'done';\n  const m = t.match(/^(?:done|hecho|completado)\\s+([a-f0-9-]{8,})/i);\n  args.taskId = m ? m[1] : null;\n} else if (/^(add|agregar|crear)\\b/i.test(lower)) {\n  command = 'add';\n  const parts = t.split('|').map(s => s.trim());\n  // title before first pipe after verb\n  const first = parts[0].replace(/^(add|agregar|crear)\\s+/i,'').trim();\n  args.title = first || null;\n  for (let i=1;i<parts.length;i++){\n    const p = parts[i];\n    const [k,v] = p.split('=').map(s=>s && s.trim());\n    if (!k) continue;\n    if (/^priority$/i.test(k)) args.priority = v?.toUpperCase() || null;\n    else if (/^project$/i.test(k)) args.project = v || null;\n    else if (/^tags?$/i.test(k)) args.tags = (v||'').split(',').map(s=>s.trim().toLowerCase()).filter(Boolean);\n  }\n} else {\n  // Fallback: if any text remains, treat as add <title>\n  if (t) { command = 'add'; args.title = t; }\n}\n\nreturn [{ json: { ...j, command, args } }];"
+      },
+      "id": "bdafe2ca-21b8-4d3d-b77d-122f2609f7af",
+      "name": "Parse Command",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        256,
+        336
+      ]
+    },
+    {
+      "parameters": {
+        "type": "SHA256",
+        "value": "={{$json.sender}}\n"
+      },
+      "id": "5ea24b50-5dcb-47d7-832a-f563650fddc7",
+      "name": "Build Identifier",
+      "type": "n8n-nodes-base.crypto",
+      "typeVersion": 1,
+      "position": [
+        384,
+        464
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.command }}",
+                    "rightValue": "add",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "bc946c99-021e-438c-b22c-e5433f90b8a0"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "c00ea533-34ef-4eb3-8e83-eaecc6b0ce90",
+                    "leftValue": "={{ $json.command }}",
+                    "rightValue": "list",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "2c43aea3-aa8e-48f0-b35e-e7a2c9a74bc8",
+                    "leftValue": "={{ $json.command }}",
+                    "rightValue": "done",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "9476eac2-c826-4fb2-96a0-cea8e325c731",
+      "name": "Switch Command",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        624,
+        432
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "const j = items[0].json;\nconst body = {\n  identifier: (j.identifier ?? j.data),\n  title: j.args?.title,\n  priority: j.args?.priority || undefined,\n  project: j.args?.project || undefined,\n  tags: j.args?.tags || []\n};\nreturn [{ json: body }];\n"
+      },
+      "id": "307e2780-3bb8-4b56-af3a-5b9eaf59c4aa",
+      "name": "Build Add Payload",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        880,
+        192
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://arm-contacting-mountain-tions.trycloudflare.com/api/todos\n",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"identifier\": \"={{$json.identifier || $json.data}}\",\n  \"title\": \"={{$json.args.title}}\"\n}\n",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "bab1226a-5dfc-4c55-8244-ae561202600f",
+      "name": "POST /api/todos",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1200,
+        176
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ ($env.APP_API_BASE || 'https://<your-app-domain>') + '/api/todos?identifier=' + encodeURIComponent($json.identifier || $json.data) }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "cd678f30-4665-4210-901c-3a844d210aef",
+      "name": "GET /api/todos",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        864,
+        464
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "// Build a short human reply for WhatsApp (max 5 items, active only)\nconst res = items[0].json;\nconst data = res?.data || res; // handle if endpoint returns envelope\nconst todos = Array.isArray(data) ? data : (Array.isArray(data?.data) ? data.data : []);\nconst active = todos.filter(t => !t.completed).slice(0,5);\nlet lines = [];\nif (active.length === 0) {\n  lines.push('No hay pendientes activos.');\n} else {\n  active.forEach(t => {\n    const shortId = (t.id || '').toString().slice(0,8);\n    lines.push(`(${shortId}) ${t.title}`);\n  });\n}\nreturn [{ json: { reply_text: lines.join('\\n') } }];\n"
+      },
+      "id": "f9b55313-a45b-453e-b1a4-d0d6b79b538e",
+      "name": "Prepare List Reply",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        1104,
+        544
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ ($env.APP_API_BASE || 'https://<your-app-domain>') + '/api/todos/' + ($json.args.taskId || '') }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{$env.APP_API_TOKEN ? ('Bearer ' + $env.APP_API_TOKEN) : ''}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"identifier\":\"={{$json.identifier || $json.data}}\",\"completed\": true}\n",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "ae4182df-06c9-46da-ac5e-c8e3a18f93ad",
+      "name": "PATCH /api/todos/:id",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        848,
+        736
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "const j = items[0].json;\nlet reply = 'OK.';\nif (j?.statusCode && (j.statusCode < 200 || j.statusCode >= 300)) {\n  reply = 'No se pudo completar la tarea.';\n} else {\n  reply = 'Tarea marcada como completada.';\n}\nreturn [{ json: { reply_text: reply } }];\n"
+      },
+      "id": "31cd05a3-4149-46bd-8156-8ec43388177d",
+      "name": "Prepare Done Reply",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        1136,
+        736
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "const j = items[0].json;\n// If coming from POST /api/todos, craft a nice ack\nif (j?.statusCode && j?.body) {\n  try {\n    const env = JSON.parse(j.body);\n    const data = env.data || {};\n    const shortId = (data.id || '').toString().slice(0,8);\n    const lang = $('Normalize & Extract').item.json.lang || 'en';\n    const base = lang.startsWith('es') ? 'Creada' : 'Created';\n    return [{ json: { reply_text: `${base} (${shortId}) ${data.title || ''}` } }];\n  } catch { /* fallthrough */ }\n}\n// Pass-through if previous step already prepared reply_text\nreturn items;\n"
+      },
+      "id": "56b47f66-f50f-4b90-a58e-348b4eda6500",
+      "name": "Build Unified Reply",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        1344,
+        464
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://evolution-api-production-9899.up.railway.app/send",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "={\n  \"number\": \"={{$json.sender}}\",\n  \"text\": \"={{$json.reply_text}}\"\n}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ {\n  [$env.WA_PAYLOAD_NUMBER_FIELD || 'number']: $json.sender,\n  [$env.WA_PAYLOAD_TEXT_FIELD   || 'text'  ]: $json.reply_text\n} }}\n",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "701935da-d185-4ad0-b7c7-601679a3788b",
+      "name": "HTTP Send WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1584,
+        464
+      ]
+    },
+    {
+      "parameters": {
+        "functionCode": "const code = $json.statusCode;\nreturn [{ json: { ok: code>=200 && code<300, op: 'whatsapp.send', statusCode: code } }];\n"
+      },
+      "id": "aae5bf2c-f3cb-4394-b987-0aeb5b95dc71",
+      "name": "WA Result Log",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        1824,
+        464
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "45f8178a-bdad-43f5-89f0-ddc69de0e333",
+              "name": "content",
+              "value": "{\"enhanced_description\":\"Mock from smoke\",\"steps\":[\"Paso 1\",\"Paso 2\"]}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        304,
+        -624
+      ],
+      "id": "9b070c1c-479c-47ac-8e61-f1fd7a76e875",
+      "name": "Mock LLM JSON"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "GPT-4O-MINI"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "={{ $('Build Prompt (System+User)').item.json.system }}\n",
+              "role": "system"
+            },
+            {
+              "content": "={{ $('Build Prompt (System+User)').item.json.user }}\n"
+            }
+          ]
+        },
+        "simplify": false,
+        "jsonOutput": true,
+        "options": {
+          "maxTokens": 300,
+          "temperature": 0.2
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [
+        32,
+        -336
+      ],
+      "id": "f46095b3-de27-4e55-919e-b3ea4a3f59f7",
+      "name": "Message a model",
+      "credentials": {
+        "openAiApi": {
+          "id": "a8wdVwH0Byc3THLx",
+          "name": "OpenAi account 2"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook - Enhance": {
+      "main": [
+        [
+          {
+            "node": "Validate Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Input": {
+      "main": [
+        [
+          {
+            "node": "De-dupe Guard (soft)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "De-dupe Guard (soft)": {
+      "main": [
+        [
+          {
+            "node": "IF Duplicated?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Duplicated?": {
+      "main": [
+        [
+          {
+            "node": "Duplicate Log (Enhance)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Prompt (System+User)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse LLM Output": {
+      "main": [
+        [
+          {
+            "node": "IF Has Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Has Content": {
+      "main": [
+        [
+          {
+            "node": "Build Callback Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Callback Payload": {
+      "main": [
+        [
+          {
+            "node": "Sign Callback (HMAC, optional)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sign Callback (HMAC, optional)": {
+      "main": [
+        [
+          {
+            "node": "POST /api/webhooks/enhance",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "POST /api/webhooks/enhance": {
+      "main": [
+        [
+          {
+            "node": "IF Callback 2xx?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Callback 2xx?": {
+      "main": [
+        [
+          {
+            "node": "Success Log",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Failure Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook - WhatsApp Inbound": {
+      "main": [
+        [
+          {
+            "node": "Normalize & Extract",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize & Extract": {
+      "main": [
+        [
+          {
+            "node": "IF Hashtag Present",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Hashtag Present": {
+      "main": [
+        [
+          {
+            "node": "IF WA Skipped?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF WA Skipped?": {
+      "main": [
+        [
+          {
+            "node": "WA Skip Log",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "De-dupe WA (12h)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "De-dupe WA (12h)": {
+      "main": [
+        [
+          {
+            "node": "Parse Command",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Command": {
+      "main": [
+        [
+          {
+            "node": "Build Identifier",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Identifier": {
+      "main": [
+        [
+          {
+            "node": "Switch Command",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Add Payload": {
+      "main": [
+        [
+          {
+            "node": "POST /api/todos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "POST /api/todos": {
+      "main": [
+        [
+          {
+            "node": "Build Unified Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GET /api/todos": {
+      "main": [
+        [
+          {
+            "node": "Prepare List Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare List Reply": {
+      "main": [
+        [
+          {
+            "node": "Build Unified Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PATCH /api/todos/:id": {
+      "main": [
+        [
+          {
+            "node": "Prepare Done Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Done Reply": {
+      "main": [
+        [
+          {
+            "node": "Build Unified Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Unified Reply": {
+      "main": [
+        [
+          {
+            "node": "HTTP Send WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Send WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "WA Result Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch Command": {
+      "main": [
+        [
+          {
+            "node": "Build Add Payload",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "GET /api/todos",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "PATCH /api/todos/:id",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Prompt (System+User)": {
+      "main": [
+        [
+          {
+            "node": "Message a model",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model": {
+      "main": [
+        [
+          {
+            "node": "Parse LLM Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "41859cc9-92ea-42b4-bf3e-8f3c5cfc9920",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "f0273f139b6aa45516d69d30ec384748caec27a5a58280eca208016bf6df9793"
+  },
+  "id": "JF90YKsdME8mcFK3",
+  "tags": []
+}

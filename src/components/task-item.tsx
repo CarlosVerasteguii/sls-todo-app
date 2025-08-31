@@ -124,6 +124,15 @@ export function TaskItem({
       onMouseEnter={() => setShowDetails(true)}
       onMouseLeave={() => setShowDetails(false)}
     >
+      {/* Subtle ID badge (click to copy full ID) */}
+      <button
+        className="absolute top-2 left-2 z-10 text-[10px] text-gray-400 hover:text-gray-300 bg-black/30 rounded px-1.5 py-0.5 cursor-copy"
+        onClick={(e) => { e.stopPropagation(); navigator.clipboard?.writeText(task.id).catch(() => {}); }}
+        title={task.id}
+        aria-label="Copy task ID"
+      >
+        #{String(task.id).slice(0, 8)}
+      </button>
       {/* Main row */}
       <div className="flex items-center gap-4">
         {/* Priority Dot */}
