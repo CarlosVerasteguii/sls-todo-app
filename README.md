@@ -3,7 +3,7 @@
 > A production-style To-Do app built with **Next.js + Supabase + Vercel**, scoped by a user-provided **Identifier** (email or name). From day-1 it is architected to plug in **Chat (n8n + LLM)** and a **WhatsApp** adapter—without refactors.
 
 **Status:** v1.1 (assessment-ready)  
-**Live App:** `<TBD_APP_URL>` • **Chat UI:** `<TBD_CHAT_URL>` • **Health:** `<TBD_APP_URL>/api/health`
+**Live App:** `https://slstodo.vercel.app/` 
 
 ---
 
