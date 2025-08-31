@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef } from "react"
+import { createClient } from '@/lib/supabase/client' // Realtime client (browser)
 import type { Task, Priority, TaskFilters, UndoAction, Todo } from "@/types/task"
 import { getSortedTasks, filterTasks, toTask, toTasks } from "@/lib/task-utils"
 import { ToastNotification } from "@/components/notification-toast"
@@ -89,6 +90,24 @@ export function useTasks({ userIdentifier, addNotification }: UseTasksOptions) {
             title: "Task created",
             message: `"${createdTask.title}" has been added.`,
           });
+          // --- INICIO: Disparar Webhook de n8n (Fire-and-Forget) ---
+          const n8nWebhookUrl = process.env.NEXT_PUBLIC_N8N_ENHANCE_WEBHOOK_URL;
+          if (n8nWebhookUrl) {
+            fetch(n8nWebhookUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                todo_id: createdTask.id,
+                identifier: createdTask.identifier_raw, // O identifier_norm
+                title: createdTask.title
+              }),
+            }).catch(error => {
+              console.warn('n8n webhook call failed (fire-and-forget)', error);
+            });
+          } else {
+            console.warn('N8N_ENHANCE_WEBHOOK_URL is not defined.');
+          }
+          // --- FIN: Disparar Webhook de n8n ---
           return { ok: true, id: createdTask.id, request_id: data.request_id };
         } else {
           setError(data.error?.message || "An unknown error occurred");
@@ -350,8 +369,12 @@ export function useTasks({ userIdentifier, addNotification }: UseTasksOptions) {
         return;
       }
 
+      // CAPTURAR el estado ANTES de cualquier cambio
       const taskToDelete = tasks.find((t) => t.id === id);
-      if (!taskToDelete) return;
+      if (!taskToDelete) {
+        console.error("deleteTask: Task not found in local state.", { id });
+        return;
+      }
 
       // Optimistic update: remove from UI immediately
       setTasks((prev) => prev.filter((t) => t.id !== id));
@@ -369,6 +392,12 @@ export function useTasks({ userIdentifier, addNotification }: UseTasksOptions) {
           },
           body: JSON.stringify({ identifier: userIdentifier }),
         });
+
+        if (!response.ok) {
+          // Si la respuesta no es 2xx, lanzar un error para ir al catch
+          const errorData: any = await response.json().catch(() => ({ message: 'Failed to parse error response' }));
+          throw new Error(errorData?.error?.message || `API Error: ${response.status}`);
+        }
 
         const data = await response.json();
 
@@ -409,18 +438,19 @@ export function useTasks({ userIdentifier, addNotification }: UseTasksOptions) {
         }
       } catch (err: any) {
         // Revert optimistic update
-        setTasks((prev) => [...prev, taskToDelete]);
-        setError(err.message || "Failed to delete task");
-        addNotification({
-          type: "error",
-          title: "Network Error",
-          message: err.message || "Failed to delete task.",
-        });
-        console.error("Failed to delete task:", err);
-      } finally {
-        setLoading(false);
-        setIsMutating(false);
-      }
+          console.error("Failed to delete task, reverting UI:", err);
+          setTasks((prev) => [...prev, taskToDelete]);
+          setError(err.message || "Failed to delete task");
+          addNotification({
+            type: "error",
+            title: "Network Error",
+            message: err.message || "Failed to delete task.",
+          });
+          console.error("Failed to delete task:", err);
+        } finally {
+          setLoading(false);
+          setIsMutating(false);
+        }
     },
     [userIdentifier, tasks, addNotification, undoManager, restoreDeleted, setLoading, setIsMutating, setError, setRequestId],
   );
@@ -808,6 +838,38 @@ export function useTasks({ userIdentifier, addNotification }: UseTasksOptions) {
       }
     }
   }, [userIdentifier, isIdentifierLocked])
+
+  // Subscribe to Supabase Realtime updates on todos
+  useEffect(() => {
+    const supabase = createClient();
+
+    const channel = supabase
+      .channel('todos-changes')
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'todos' },
+        (payload) => {
+          
+          const updatedTodo = payload.new as Todo;
+
+          // Lógica robusta
+          if (updatedTodo) {
+            const updatedTask = toTask(updatedTodo);
+            setTasks(currentTasks => {
+              // Crear un nuevo array para garantizar el re-renderizado
+              return currentTasks.map(task =>
+                task.id === updatedTask.id ? updatedTask : task
+              );
+            });
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [setTasks])
 
   // tasks from state is already filtered by the API. This is our source of truth.
   const allTasksForUI = tasks

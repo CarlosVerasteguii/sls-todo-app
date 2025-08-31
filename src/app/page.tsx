@@ -131,20 +131,7 @@ export default function TodoApp() {
             togglePriority(focusedTaskId);
           }
           break;
-        case "Delete":
-        case "Backspace":
-          if (selectedTaskIds.size > 0) {
-            e.preventDefault();
-            const idsToDelete = Array.from(selectedTaskIds);
-            bulkDelete(idsToDelete);
-            setSelectedTaskIds(new Set());
-            setFocusedTaskId(null);
-          } else if (focusedTaskId && !editingTaskId) {
-            e.preventDefault();
-            deleteTask(focusedTaskId);
-            setFocusedTaskId(null); // Clear focused task after deletion
-          }
-          break;
+        // Delete/Backspace handlers removed to stabilize UX (explicit UI actions only)
         case "a":
         case "A":
           if (e.ctrlKey || e.metaKey) {
@@ -533,9 +520,6 @@ export default function TodoApp() {
                       <kbd className="kbd">P</kbd> Change priority
                     </div>
                     <div>
-                      <kbd className="kbd">Del</kbd> Delete selected
-                    </div>
-                    <div>
                       <kbd className="kbd">Ctrl+A</kbd> Select all
                     </div>
                     <div>
@@ -568,17 +552,18 @@ export default function TodoApp() {
             </div>
 
             <div className="animate-slide-in-up" style={{ animationDelay: "0.3s" }}>
-              <TaskList
-                tasks={activeTasks}
-                selectedTaskIds={selectedTaskIds}
-                editingTaskId={editingTaskId}
-                onToggleComplete={handleToggleComplete}
-                onSelect={handleSelect}
-                focusedTaskId={focusedTaskId}
-                onFocus={handleFocusTask}
-                saveEdit={saveEdit}
-                cancelEdit={cancelEdit}
-              />
+            <TaskList
+              tasks={activeTasks}
+              selectedTaskIds={selectedTaskIds}
+              editingTaskId={editingTaskId}
+              onToggleComplete={handleToggleComplete}
+              onSelect={handleSelect}
+              focusedTaskId={focusedTaskId}
+              onFocus={handleFocusTask}
+              saveEdit={saveEdit}
+              cancelEdit={cancelEdit}
+              onDelete={handleDeleteTask}
+            />
             </div>
 
             {/* Completed Tasks Section - Always show, even if empty */}
@@ -652,6 +637,7 @@ export default function TodoApp() {
                                   onFocus={handleFocusTask}
                                   saveEdit={saveEdit}
                                   cancelEdit={cancelEdit}
+                                  onDelete={handleDeleteTask}
                                 />
                               </div>
                               {task.completedAt && (

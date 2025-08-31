@@ -13,6 +13,7 @@ interface TaskListProps {
   onFocus: (taskId: string) => void; // New prop
   saveEdit: (id: string, updates: Partial<Task>) => void;
   cancelEdit: () => void;
+  onDelete: (taskId: string) => void;
 }
 
 export function TaskList({
@@ -25,6 +26,7 @@ export function TaskList({
   onFocus,
   saveEdit,
   cancelEdit,
+  onDelete,
 }: TaskListProps) {
   if (tasks.length === 0) {
     return (
@@ -48,6 +50,7 @@ export function TaskList({
           onFocus={onFocus}
           saveEdit={saveEdit}
           cancelEdit={cancelEdit}
+          onDelete={onDelete}
         />
       ))}
     </div>

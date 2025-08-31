@@ -18,6 +18,8 @@ interface TaskItemProps {
   // Edit wiring from parent (TaskList/page)
   saveEdit: (taskId: string, updates: Partial<Task>) => void
   cancelEdit: () => void
+  // Delete wiring from parent (TaskList/page)
+  onDelete: (taskId: string) => void
 }
 
 export function TaskItem({
@@ -30,6 +32,7 @@ export function TaskItem({
   onFocus,
   saveEdit,
   cancelEdit,
+  onDelete,
 }: TaskItemProps) {
   const [showDetails, setShowDetails] = useState(false)
   const [isCompleting, setIsCompleting] = useState(false)
@@ -243,7 +246,18 @@ export function TaskItem({
       <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
         {/* Removed priority cycle button */}
         {/* Removed edit button */}
-        {/* Removed delete button */}
+        {/* Delete button */}
+        <button
+          className="flex-shrink-0 p-2 rounded-full hover:bg-sls-surface-hover transition-all duration-200 focus-ring"
+          onClick={(e) => { e.stopPropagation(); onDelete(task.id); }}
+          aria-label="Delete task"
+          title="Delete task"
+        >
+          <svg className="w-4 h-4 text-red-400" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M6 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm6-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" />
+            <path fillRule="evenodd" d="M4 6h12v1H4V6zm3-2a2 2 0 012-2h2a2 2 0 012 2h3a1 1 0 110 2H4a1 1 0 110-2h3zm1 2h4v1H8V6zM6 17a2 2 0 01-2-2V7h12v8a2 2 0 01-2 2H6z" clipRule="evenodd" />
+          </svg>
+        </button>
       </div>
 
       <button

@@ -83,18 +83,24 @@ export async function DELETE(
   request: NextRequest,
   context: { params: { id: string } }
 ) {
+  console.log('\n--- [API] Petición DELETE recibida ---');
   const supabase = await createClient();
   const params = await context.params;
   const id = params.id;
+  console.log('[API] ID de la ruta:', id);
 
   try {
     const body = await request.json();
+    console.log('[API] Body recibido:', body);
     const { identifier } = body;
+    console.log('[API] Identifier extraído:', identifier);
 
     if (!identifier) {
+      console.error('[API] ERROR: Identifier no encontrado en el body. Abortando.');
       return createErrorResponse({ code: 'BAD_REQUEST', message: 'Identifier is required in the request body' }, 400);
     }
     const identifier_norm = (identifier as string).trim().toLowerCase();
+    console.log('[API] Identifier normalizado para la consulta:', identifier_norm);
 
     const { data, error } = await supabase
       .from('todos')
@@ -104,14 +110,24 @@ export async function DELETE(
       .select('id')
       .single();
 
+    console.log('[API] Resultado de Supabase (data):', data);
+    console.log('[API] Resultado de Supabase (error):', error);
+    console.log('--- [API] Fin de la petición ---');
+
     if (error) {
       console.error('Error deleting todo:', error);
+      // Si el error es 'PGRST116', significa "No rows found". Lo tratamos como 404.
+      if ((error as any).code === 'PGRST116') {
+        return createErrorResponse({ code: 'NOT_FOUND', message: 'Task not found or permission denied' }, 404);
+      }
       return createErrorResponse(
         { code: 'DB_ERROR', message: error.message },
         500
       );
     }
 
+    // El bloque 'if (!data && !error)' puede que nunca se alcance con .single(),
+    // pero lo dejamos como una segunda capa de seguridad.
     if (!data && !error) {
       return createErrorResponse({ code: 'NOT_FOUND', message: 'Task not found or permission denied' }, 404);
     }
