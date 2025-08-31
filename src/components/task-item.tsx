@@ -112,170 +112,104 @@ export function TaskItem({
 
   return (
     <div
-      className={`todo-item group animate-slide-in-up cursor-pointer ${task.completed ? "completed" : ""} ${isSelected ? "ring-2" : ""
-        } focus-ring relative overflow-visible`}
-      style={{
-        transform: isSelected ? "translateY(-2px)" : "translateY(0)",
-        boxShadow: isSelected
-          ? "0 8px 24px rgba(231, 55, 37, 0.15), 0 0 0 1px rgba(231, 55, 37, 0.1)"
-          : task.completed
-            ? "0 1px 4px rgba(0, 0, 0, 0.05)"
-            : "0 2px 8px rgba(0, 0, 0, 0.08)",
-        borderLeft: "3px solid transparent",
-        zIndex: showDetails || isSelected ? 10 : 1,
-      }}
-      tabIndex={task.id === focusedTaskId ? 0 : -1} // Updated tabIndex
+      className={`group relative overflow-visible rounded-lg border border-white/10 bg-black/20 p-4 transition-all cursor-pointer ${isSelected ? '-translate-y-0.5 ring-2 ring-red-500' : 'hover:shadow-md'} ${task.completed ? 'opacity-80' : ''}`}
+      tabIndex={task.id === focusedTaskId ? 0 : -1}
       role="listitem"
       aria-selected={isSelected}
       aria-checked={task.completed}
       onClick={handleCardClick}
       onDoubleClick={handleDoubleClick}
-      onKeyDown={handleKeyDown} // Keep onKeyDown for now, but it will be empty or simplified
-      onFocus={() => onFocus(task.id)} // New onFocus handler
+      onKeyDown={handleKeyDown}
+      onFocus={() => onFocus(task.id)}
       onMouseEnter={() => setShowDetails(true)}
       onMouseLeave={() => setShowDetails(false)}
     >
-      {/* Priority Dot */}
-      <div
-        className="flex-shrink-0 w-3 h-3 rounded-full"
-        style={{ backgroundColor: PRIORITY_COLORS[task.priority as Priority] }}
-        title={`Priority: ${PRIORITY_LABELS[task.priority as Priority]}`}
-      />
-
-      {/* Checkbox */}
-      <button
-        className={`flex-shrink-0 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all duration-200 hover:scale-110 focus-ring ${isCompleting ? "animate-pulse" : ""
-          }`}
-        style={{
-          borderColor: task.completed ? "var(--sls-primary)" : "var(--sls-muted)",
-          backgroundColor: task.completed ? "var(--sls-primary)" : "transparent",
-        }}
-        onClick={handleToggleComplete}
-        aria-label={task.completed ? "Mark as incomplete" : "Mark as complete"}
-        disabled={isCompleting}
-      >
-        {task.completed && (
-          <svg className="w-3 h-3 animate-checkmark" fill="white" viewBox="0 0 20 20">
-            <path
-              fillRule="evenodd"
-              d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-              clipRule="evenodd"
-            />
-          </svg>
-        )}
-      </button>
-
-      {/* Task Content */}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 min-w-0 flex-1">
-            <span
-              className={`transition-all duration-200 ${task.completed ? "line-through" : ""}`}
-              style={{
-                color: isSelected ? "var(--sls-primary)" : task.completed ? "var(--sls-muted)" : "var(--sls-text-light)",
-                fontWeight: isSelected ? "600" : "400",
-              }}
-            >
-              {task.title}
-            </span>
-
-            {task.tags && task.tags.length > 0 && (
-              <div className="flex items-center gap-1 flex-shrink-0">
-                {task.tags.slice(0, 2).map((tag, index) => (
-                  <span
-                    key={index}
-                    className="px-2 py-0.5 text-xs rounded-full bg-sls-primary/20 text-sls-primary whitespace-nowrap"
-                  >
-                    {tag}
-                  </span>
-                ))}
-                {task.tags.length > 2 && (
-                  <div className="relative group/tags">
-                    <span className="px-2 py-0.5 text-xs rounded-full bg-sls-muted/20 text-sls-muted cursor-help whitespace-nowrap">
-                      +{task.tags.length - 2}
-                    </span>
-
-                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover/tags:opacity-100 transition-opacity duration-200 pointer-events-none z-[100] whitespace-nowrap shadow-lg min-w-max">
-                      All tags: {task.tags.join(", ")}
-                      <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          <div className="flex items-center gap-2 flex-shrink-0">
-            {/* Status Badges */}
-            {isSnoozed && task.snoozedUntil && (
-              <span className="px-2 py-1 text-xs rounded-full bg-amber-500/20 text-amber-300 flex items-center gap-1">
-                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                  <path
-                    fillRule="evenodd"
-                    d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-                {getRelativeTime(task.snoozedUntil)}
-              </span>
-            )}
-
-            {/* Overdue and countdown removed per PRD scope alignment */}
-          </div>
-        </div>
-
+      {/* Main row */}
+      <div className="flex items-center gap-4">
+        {/* Priority Dot */}
         <div
-          className={`mt-2 space-y-1 relative z-20 transition-opacity duration-200 ${
-            showDetails || isSelected ? "opacity-100" : "opacity-0 pointer-events-none"
-          }`}
-          style={{ minHeight: "1.5rem" }}
+          className="w-3 h-3 rounded-full"
+          style={{ backgroundColor: PRIORITY_COLORS[task.priority as Priority] }}
+          title={`Priority: ${PRIORITY_LABELS[task.priority as Priority]}`}
+        />
+
+        {/* Complete checkbox */}
+        <button
+          className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all duration-200 hover:scale-110 focus:outline-none focus:ring-2 focus:ring-red-500 ${isCompleting ? 'animate-pulse' : ''} ${task.completed ? 'bg-red-600 border-red-600' : 'border-gray-400 bg-transparent'}`}
+          onClick={handleToggleComplete}
+          aria-label={task.completed ? 'Mark as incomplete' : 'Mark as complete'}
+          disabled={isCompleting}
         >
-          {task.enhanced_description && (
-            <p className="text-sm italic text-gray-400" style={{ color: "var(--sls-text-secondary)" }}>
-              {task.enhanced_description}
-            </p>
+          {task.completed && (
+            <svg className="w-3 h-3" fill="white" viewBox="0 0 20 20">
+              <path
+                fillRule="evenodd"
+                d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                clipRule="evenodd"
+              />
+            </svg>
           )}
-          {Array.isArray(task.steps) && task.steps.length > 0 && (
-            <div className="mt-2">
-              <h4 className="text-xs font-bold text-gray-500 mb-1">Steps:</h4>
-              <ul className="list-disc list-inside text-sm text-gray-400 space-y-1">
-                {task.steps.map((step, index) => (
-                  <li key={index}>{String(step)}</li>
-                ))}
-              </ul>
-            </div>
+        </button>
+
+        {/* Title (centered, grows) */}
+        <div className="flex-1">
+          <span className={`block text-center truncate ${task.completed ? 'line-through text-gray-400' : 'text-white'} ${isSelected ? 'font-semibold' : 'font-normal'}`}>
+            {task.title}
+          </span>
+        </div>
+
+        {/* Right side badges + actions */}
+        <div className="flex items-center gap-2">
+          {isSnoozed && task.snoozedUntil && (
+            <span className="px-2 py-1 text-xs rounded-full bg-amber-500/20 text-amber-300 flex items-center gap-1">
+              <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                <path
+                  fillRule="evenodd"
+                  d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z"
+                  clipRule="evenodd"
+                />
+              </svg>
+              {getRelativeTime(task.snoozedUntil)}
+            </span>
           )}
-          {task.project && (
-            <p className="text-xs" style={{ color: "var(--sls-muted)" }}>
-              📁 {task.project}
-            </p>
-          )}
+          <button
+            className="p-2 rounded-full hover:bg-white/10 transition-opacity opacity-0 group-hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-red-500"
+            onClick={(e) => { e.stopPropagation(); onDelete(task.id); }}
+            aria-label="Delete task"
+            title="Delete task"
+          >
+            <svg className="w-4 h-4 text-red-400" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M6 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm6-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" />
+              <path fillRule="evenodd" d="M4 6h12v1H4V6zm3-2a2 2 0 012-2h2a2 2 0 012 2h3a1 1 0 110 2H4a1 1 0 110-2h3zm1 2h4v1H8V6zM6 17a2 2 0 01-2-2V7h12v8a2 2 0 01-2 2H6z" clipRule="evenodd" />
+            </svg>
+          </button>
         </div>
       </div>
 
-      <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-        {/* Removed priority cycle button */}
-        {/* Removed edit button */}
-        {/* Delete button */}
-        <button
-          className="flex-shrink-0 p-2 rounded-full hover:bg-sls-surface-hover transition-all duration-200 focus-ring"
-          onClick={(e) => { e.stopPropagation(); onDelete(task.id); }}
-          aria-label="Delete task"
-          title="Delete task"
-        >
-          <svg className="w-4 h-4 text-red-400" fill="currentColor" viewBox="0 0 20 20">
-            <path d="M6 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm6-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" />
-            <path fillRule="evenodd" d="M4 6h12v1H4V6zm3-2a2 2 0 012-2h2a2 2 0 012 2h3a1 1 0 110 2H4a1 1 0 110-2h3zm1 2h4v1H8V6zM6 17a2 2 0 01-2-2V7h12v8a2 2 0 01-2 2H6z" clipRule="evenodd" />
-          </svg>
-        </button>
+      {/* Details section */}
+      <div className={`mt-4 space-y-2 transition-opacity ${showDetails || isSelected ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+        {task.enhanced_description && (
+          <p className="text-sm italic text-gray-300">{task.enhanced_description}</p>
+        )}
+        {Array.isArray(task.steps) && task.steps.length > 0 && (
+          <div className="mt-2">
+            <h4 className="text-xs font-bold text-gray-500 mb-1">Steps:</h4>
+            <ul className="list-disc list-inside text-sm text-gray-400 space-y-1 ml-6">
+              {task.steps.map((step, index) => (
+                <li key={index}>{String(step)}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {task.project && (
+          <p className="text-xs text-gray-500">📁 {task.project}</p>
+        )}
       </div>
 
+      {/* Mobile details toggle */}
       <button
-        className="md:hidden flex-shrink-0 p-2 rounded-full hover:bg-sls-surface-hover transition-all duration-200 focus-ring"
-        onClick={(e) => {
-          e.stopPropagation()
-          setShowDetails(!showDetails)
-        }}
+        className="md:hidden mt-3 p-2 rounded-full hover:bg-white/10 transition focus:outline-none focus:ring-2 focus:ring-red-500"
+        onClick={(e) => { e.stopPropagation(); setShowDetails(!showDetails); }}
         aria-label="Toggle task details"
         title="Show details"
       >
