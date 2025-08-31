@@ -390,6 +390,36 @@
 - `pnpm test` → PASS: el test previamente rojo ahora pasa.
 - Validación manual recomendada: en la UI, con identificador bloqueado, `Ctrl+A` seguido de `Del` elimina todas las tareas activas seleccionadas.
 
+### Fix Adicional (Foco)
+
+**What & Why:**
+- Se conectó el evento `onFocus` en `TaskItem` para notificar a la página principal el ID enfocado. Esto corrige el caso donde, sin selección activa, presionar `Delete` debía eliminar únicamente la tarea enfocada.
+
+**Changed File:**
+- `src/components/task-item.tsx` — se añadió `onFocus={() => onFocus(task.id)}` en el elemento raíz y se notificó el foco también en `handleCardClick`.
+
+**Verification:**
+- `pnpm test` → Todos los tests de componentes pasan, incluyendo el de borrado de tarea única con `Delete` sin selección.
+
+---
+
+## Fix: Stabilize Component Tests with Stateful Mock and Focus Wiring
+
+**When (America/Monterrey):** 2025-08-31
+**Status:** ✅ Done
+
+**Changed Files:**
+- `src/app/page.test.tsx` (mock completamente stateful para selección y foco)
+- `src/components/task-item.tsx` (propaga foco con `onFocus` y en `handleCardClick`)
+
+**What & Why:**
+- Se refactorizó el mock de `useTasks` para simular estado real con `useState` tanto para `selectedTaskIds` como para `focusedTaskId`. Esto garantiza que el manejador global de atajos vea el estado actualizado tras interacciones de usuario.
+- Se cableó el foco desde `TaskItem` hacia la página para que `Delete` sin selección borre solo la tarea enfocada.
+
+**Verification:**
+- `pnpm test` → Todos los 5 tests en `src/app/page.test.tsx` pasan.
+- Validación manual: `Ctrl+A` + `Del` elimina en lote; click en tarea + `Del` elimina sólo esa tarea; `Esc` limpia la selección; con foco en el input, atajos no se disparan.
+
 - **Auditoría de Código:** Completada.
 - **Pruebas Manuales (Confirmación):** El comportamiento de `E`, `P`, `Delete`, `CTRL+A`, `CTRL+Z` y `ESC` coincide con la implementación esperada.
 

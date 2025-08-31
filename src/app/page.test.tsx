@@ -63,9 +63,11 @@ vi.mock('@/hooks/use-tasks', async () => {
   return {
     useTasks: () => {
       const [selected, setSelected] = useState<Set<string>>(new Set())
+      const [focused, setFocused] = useState<string | null>(null)
       const setSelectedTaskIds = vi.fn((next: any) => {
         setSelected((prev) => (typeof next === 'function' ? next(prev) : next))
       })
+      const setFocusedTaskId = vi.fn((id: string | null) => setFocused(id))
       setSelectedTaskIdsSpy = setSelectedTaskIds
 
       return {
@@ -73,6 +75,8 @@ vi.mock('@/hooks/use-tasks', async () => {
         allTasks: [...activeTasks, completedTask],
         selectedTaskIds: selected,
         setSelectedTaskIds,
+        focusedTaskId: focused,
+        setFocusedTaskId,
         editingTaskId: null,
         setEditingTaskId: vi.fn(),
         filters: {},
@@ -138,10 +142,10 @@ describe('TodoApp Page', () => {
     const user = userEvent.setup()
     render(<TodoApp />)
 
-    // Click on first task to simulate focusing it (UI currently selects it)
-    await user.click(await screen.findByText('Task 1'))
-    // Clear selection to simulate 'no selection' scenario
-    await user.keyboard('{Escape}')
+    // Click first task to focus + select it, then click again to clear selection while keeping focus
+    const task1 = await screen.findByText('Task 1')
+    await user.click(task1)
+    await user.click(task1)
 
     await user.keyboard('{Delete}')
 
@@ -164,20 +168,13 @@ describe('TodoApp Page', () => {
     const user = userEvent.setup()
     render(<TodoApp />)
 
-    // Select all
+    // Select all (shows X selected chip)
     await user.keyboard('{Control>}{a}{/Control}')
-    // Ensure selection happened
-    expect(setSelectedTaskIdsSpy).toBeTruthy()
-    expect(setSelectedTaskIdsSpy!.mock.calls.length).toBeGreaterThan(0)
+    expect(await screen.findByText('2 selected')).toBeInTheDocument()
 
     // Clear selection
     await user.keyboard('{Escape}')
-
-    // Verify last call cleared selection with an empty Set
-    const lastCall = setSelectedTaskIdsSpy!.mock.calls.at(-1)
-    const lastArg = lastCall?.[0]
-    expect(lastArg).toBeInstanceOf(Set)
-    expect(Array.from(lastArg as Set<string>)).toEqual([])
+    expect(screen.queryByText('2 selected')).not.toBeInTheDocument()
   })
 
   it("should not trigger shortcuts if an input field is focused", async () => {
@@ -195,6 +192,7 @@ describe('TodoApp Page', () => {
     expect(mockedBulkDelete).not.toHaveBeenCalled()
     expect(mockedTogglePriority).not.toHaveBeenCalled()
     expect(mockedDeleteTask).not.toHaveBeenCalled()
-    expect(input.value).toBe('Hello')
+    // After Ctrl+A in an input, typing 'p' replaces the content
+    expect(input.value).toBe('p')
   })
 })
