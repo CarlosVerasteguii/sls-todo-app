@@ -230,10 +230,20 @@ export function TaskItem({
           }`}
           style={{ minHeight: "1.5rem" }}
         >
-          {task.description && (
-            <p className="text-sm" style={{ color: "var(--sls-text-secondary)" }}>
-              {task.description}
+          {task.enhanced_description && (
+            <p className="text-sm italic text-gray-400" style={{ color: "var(--sls-text-secondary)" }}>
+              {task.enhanced_description}
             </p>
+          )}
+          {Array.isArray(task.steps) && task.steps.length > 0 && (
+            <div className="mt-2">
+              <h4 className="text-xs font-bold text-gray-500 mb-1">Steps:</h4>
+              <ul className="list-disc list-inside text-sm text-gray-400 space-y-1">
+                {task.steps.map((step, index) => (
+                  <li key={index}>{String(step)}</li>
+                ))}
+              </ul>
+            </div>
           )}
           {task.project && (
             <p className="text-xs" style={{ color: "var(--sls-muted)" }}>
