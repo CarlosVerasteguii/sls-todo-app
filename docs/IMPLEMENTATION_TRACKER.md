@@ -197,7 +197,48 @@
   - Modified `tabIndex` to implement roving focus (`tabIndex={taskId === focusedTaskId ? 0 : -1}`).
   - Added `onFocus` handler to the main `div` to notify parent of focused task.
   - Removed direct calls to `onStartEdit`, `onSaveEdit`, `onCancelEdit`, `onDeleteTask`, `onCyclePriority` from `handleDoubleClick`, `handleKeyDown`, and `EditTaskForm` rendering, as these are now handled by the global listener.
-  - Removed the priority, edit, and delete buttons from the UI, as their functionality is now primarily keyboard-driven.
+- Removed the priority, edit, and delete buttons from the UI, as their functionality is now primarily keyboard-driven.
+
+---
+
+## Chore: Remove Unused Files and Dependencies
+
+**When (America/Monterrey):** 2025-08-31 20:48
+
+**Branch:** `chore/remove-unused-code`
+
+**Scope:** Based on reports/knip.md and reports/depcheck.txt plus full-project cross-checks.
+
+**Removed Files:** 51
+- All 48 UI components under `src/components/ui/*.tsx` reported as unused
+- `src/components/theme-provider.tsx`
+- `src/hooks/use-mobile.ts`
+- `src/hooks/use-toast.ts`
+
+**Removed Dependencies:** 43
+- Radix UI packs used exclusively by removed UI components
+- Icon/chart/OTP/carousel/cmdk/resizable/sonner/etc. used only by removed UI components
+- `autoprefixer` (not used by `postcss.config.mjs` under Tailwind v4)
+
+**Kept (by design/precaution):**
+- `clsx`, `tailwind-merge` (used by `src/lib/utils.ts` which we preserved)
+- `@tailwindcss/postcss`, `postcss`, `tailwindcss`, `tw-animate-css`, `typescript` (tooling/runtime)
+- `src/lib/utils.ts`, `src/lib/supabase/client.ts`, `types/task.ts`
+
+**Verification (Phase 1 — after file removal):**
+- [x] `pnpm tsc --noEmit` PASS (after clearing `.next`)
+- [x] `pnpm build` PASS
+- [x] `pnpm test` PASS
+
+**Verification (Final — after dependency removal):**
+- [x] `pnpm install` PASS
+- [x] `pnpm tsc --noEmit` PASS (after clearing `.next`)
+- [x] `pnpm build` PASS
+- [x] `pnpm test` PASS
+
+**Notes:**
+- TypeScript initially failed due to stale generated types in `.next/types` expecting a different `RouteContext` param shape for Next.js 15. Clearing `.next` prior to `tsc` resolved it. No source changes were required for this chore.
+
 - **Page (`src/app/page.tsx`):**
   - Added `focusedTaskId` state and `handleFocusTask` callback.
   - Modified the global `keydown` listener:
